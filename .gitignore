@@ -27,6 +27,7 @@ packages/
 
 # Local workflow output
 .docs-closeout/
+docs-closeout-output/
 
 # Large local assets
 *.tif

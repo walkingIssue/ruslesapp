@@ -9,42 +9,74 @@ This workflow exists to make docs, changelog, and privacy review part of shippin
 - keep changelog work lightweight
 - keep the public devlog human-authored
 - keep website publication as a light downstream handoff instead of another manual chore
+- avoid recursive docs automation loops
 
 ## Workflow shape
 
-### 1. Work happens normally
+### 1. Pull requests get analysis, not auto-commits
 
-During a feature or ticket, focus on the code. Do not stop at every local session just to document partial work.
+The `docs-closeout` workflow runs on pull requests, manual dispatch, and `main` pushes that are not public-docs-only changes.
 
-### 2. Open or update a pull request
-
-The `docs-closeout` workflow runs on pull requests and manual dispatch.
-
-It reads the diff and produces:
+On pull requests it produces:
 
 - internal documentation review notes
 - a changelog draft
 - a privacy and data-inventory proposal
 - a devlog scaffold with title ideas, headers, and reflection prompts only
 
-### 3. Human review
+That output is uploaded as an artifact for review.
+
+### 2. Main pushes can open a draft docs PR
+
+When code lands on `main` and the change is not only `docs/devlog` or `docs/changelog`, `docs-closeout` also runs on the push.
+
+After a successful `main` run, `open-public-docs-pr` downloads the `docs-closeout` artifact, materializes draft public Markdown files, and opens or updates a PR back to `main`.
+
+That PR contains:
+
+- a draft changelog entry when one was recommended
+- a draft devlog starter file with required Astro frontmatter
+
+The generated branch is `docs-closeout/public-docs`.
+
+Because `docs-closeout` ignores public-docs-only changes, that generated PR does not trigger a recursive docs loop.
+
+If you need to bootstrap the flow from an already completed `Docs closeout` run, `open-public-docs-pr` also supports manual dispatch with a `run_id`.
+
+### 3. Human review stays in the loop
 
 Before merge:
 
+- rewrite the devlog in your own voice
 - review the changelog draft
-- review any privacy/data-inventory proposal
-- write the final devlog prose in your own words if a devlog entry is needed
+- review any privacy/data-inventory proposal from the artifact
+- adjust `draft`, `summary`, and any optional frontmatter fields as needed
 
-### 4. Merge reviewed docs to `main`
+### 4. Merging public docs triggers the site publish handoff
 
 When reviewed content lands in:
 
 - `docs/changelog`
 - `docs/devlog`
 
-the downstream website publishing workflow may be triggered.
+the `notify-rustles-web` workflow dispatches the downstream website publish workflow.
 
 Deployment details for the public site are intentionally not duplicated here. This repo only owns the content handoff.
+
+## Loop prevention
+
+The automation avoids stateful tracking by using event and path boundaries:
+
+- `docs-closeout` ignores `docs/devlog/**` and `docs/changelog/**`
+- the draft-docs PR only contains public docs files
+- `notify-rustles-web` only reacts to public docs landing on `main`
+
+That keeps the flow linear:
+
+1. code lands on `main`
+2. docs PR is opened
+3. docs PR is reviewed and merged
+4. website publish is dispatched
 
 ## Human-review boundaries
 
@@ -54,6 +86,7 @@ Deployment details for the public site are intentionally not duplicated here. Th
 - changelog drafts
 - data-inventory proposals
 - devlog header suggestions
+- draft public-doc starter files
 
 ### Must remain human-reviewed
 
@@ -86,13 +119,13 @@ docs/devlog/*.md
 docs/changelog/*.md
 ```
 
-Create them from the templates in `docs/templates` so the website-facing frontmatter stays consistent without duplicating that contract in multiple places.
+Create them from the templates in `docs/templates` or refine the generated drafts from the docs PR so the website-facing frontmatter stays consistent.
 
 ## Suggested working ritual
 
-1. Finish a ticket or meaningful feature slice.
-2. Open or update the PR.
-3. Review the generated docs-closeout artifact.
-4. Write or refine the public devlog entry in your own voice if one is needed.
-5. Merge the reviewed docs.
+1. Merge a meaningful code slice to `main`.
+2. Review the generated docs PR.
+3. Rewrite the devlog in your own voice.
+4. Review privacy/data-inventory notes from the artifact if relevant.
+5. Merge the docs PR.
 6. Let the downstream website publication step handle the public surface.

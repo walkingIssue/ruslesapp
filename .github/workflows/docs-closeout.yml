@@ -8,6 +8,15 @@ on:
       - reopened
       - ready_for_review
       - edited
+    paths-ignore:
+      - docs/devlog/**
+      - docs/changelog/**
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - docs/devlog/**
+      - docs/changelog/**
   workflow_dispatch:
     inputs:
       base_ref:
@@ -40,6 +49,9 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "base=${{ github.event.pull_request.base.sha }}" >> "${GITHUB_OUTPUT}"
             echo "head=${{ github.event.pull_request.head.sha }}" >> "${GITHUB_OUTPUT}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            echo "base=${{ github.event.before }}" >> "${GITHUB_OUTPUT}"
+            echo "head=${{ github.sha }}" >> "${GITHUB_OUTPUT}"
           else
             base_ref="${{ inputs.base_ref }}"
             head_ref="${{ inputs.head_ref }}"
@@ -75,20 +87,20 @@ jobs:
             --repo-root . \
             --base-ref "${{ steps.refs.outputs.base }}" \
             --head-ref "${{ steps.refs.outputs.head }}" \
-            --out-dir .docs-closeout
+            --out-dir docs-closeout-output
 
       - name: Upload docs-closeout artifacts
         uses: actions/upload-artifact@v4
         with:
           name: docs-closeout
-          path: .docs-closeout
+          path: docs-closeout-output
 
       - name: Publish summary
         shell: bash
         run: |
-          cat .docs-closeout/session-summary.md >> "${GITHUB_STEP_SUMMARY}"
+          cat docs-closeout-output/session-summary.md >> "${GITHUB_STEP_SUMMARY}"
           printf '\n## Review files\n\n' >> "${GITHUB_STEP_SUMMARY}"
-          printf -- '- `.docs-closeout/documentation-review.md`\n' >> "${GITHUB_STEP_SUMMARY}"
-          printf -- '- `.docs-closeout/changelog-draft.md`\n' >> "${GITHUB_STEP_SUMMARY}"
-          printf -- '- `.docs-closeout/privacy-review.md`\n' >> "${GITHUB_STEP_SUMMARY}"
-          printf -- '- `.docs-closeout/devlog-scaffold.md`\n' >> "${GITHUB_STEP_SUMMARY}"
+          printf -- '- `docs-closeout-output/documentation-review.md`\n' >> "${GITHUB_STEP_SUMMARY}"
+          printf -- '- `docs-closeout-output/changelog-draft.md`\n' >> "${GITHUB_STEP_SUMMARY}"
+          printf -- '- `docs-closeout-output/privacy-review.md`\n' >> "${GITHUB_STEP_SUMMARY}"
+          printf -- '- `docs-closeout-output/devlog-scaffold.md`\n' >> "${GITHUB_STEP_SUMMARY}"

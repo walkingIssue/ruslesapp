@@ -1,0 +1,81 @@
+name: Open public docs PR
+
+on:
+  workflow_run:
+    workflows:
+      - Docs closeout
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Docs closeout run id to materialize public docs from
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+jobs:
+  open-public-docs-pr:
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main'
+        )
+      }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download docs-closeout artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-closeout
+          path: docs-closeout-output
+          run-id: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Materialize draft public docs
+        run: |
+          python .github/scripts/materialize_public_docs.py \
+            --artifact-dir docs-closeout-output \
+            --repo-root .
+
+      - name: Create or update docs PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "docs: draft public content from docs closeout"
+          branch: docs-closeout/public-docs
+          delete-branch: true
+          title: "Docs closeout: draft public docs"
+          body: |
+            This PR was generated from the latest successful `Docs closeout` run on `main`.
+
+            Included here:
+            - draft changelog content when a changelog entry was recommended
+            - a draft devlog starter file with required Astro frontmatter
+
+            Before merge:
+            - rewrite the devlog in your own voice
+            - review the changelog for truthfulness and tone
+            - adjust `draft`, `summary`, and any optional metadata as needed
+          labels: |
+            documentation
+            automated
+          base: main
