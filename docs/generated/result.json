@@ -1,0 +1,71 @@
+{
+  "session_summary": "The diff extends the docs automation so review artifacts are copied into `docs/generated`, updates workflows to ignore that generated directory to avoid retriggering `docs-closeout`, adds an optional dedicated PR token fallback in the public-docs PR workflow, and updates the internal automation guide to document the new generated review files and token option.",
+  "human_actions": [
+    "Review whether `docs/generated/**` should be committed in docs PRs or remain purely generated output.",
+    "Confirm the optional `DOCS_PR_TOKEN` secret should be added and scoped appropriately if used for PR creation.",
+    "Review generated internal/privacy notes in `docs/generated` before merging any public-docs PR.",
+    "Verify the automation guide remains aligned with actual workflow behavior after these changes."
+  ],
+  "doc_updates": [
+    {
+      "target_file": "docs/automation-and-publishing.md",
+      "action": "update",
+      "reason": "Already updated in the diff to reflect new generated review files, workflow ignore rules, and optional PR token configuration.",
+      "notes": "Human review should confirm the documented behavior matches the workflows and script changes."
+    },
+    {
+      "target_file": "docs/data-inventory-and-privacy-impact.md",
+      "action": "none",
+      "reason": "No clear product-data handling change is shown in the diff.",
+      "notes": "There is an automation/security configuration change involving workflow tokens, but this is not enough to claim a product privacy-policy update without human review."
+    },
+    {
+      "target_file": "docs/generated/*",
+      "action": "create",
+      "reason": "The script now materializes review artifacts into `docs/generated` during the docs handoff flow.",
+      "notes": "These are generated review files, not canonical long-lived documentation. Confirm repository expectations for generated content."
+    }
+  ],
+  "changelog": {
+    "should_create": false,
+    "title": "",
+    "slug": "",
+    "summary": "",
+    "tags": [],
+    "version": null,
+    "body_markdown": ""
+  },
+  "privacy_needs_review": true,
+  "privacy_summary": "No user-facing product data collection change is evident, but the automation now copies review artifacts into the repository workspace and the PR creation workflow can use an optional dedicated `DOCS_PR_TOKEN`. Because generated review artifacts may include internal/privacy notes and token usage affects repository automation permissions, this should receive privacy/security review rather than being treated as a no-impact change.",
+  "privacy_proposed_log_entry": "2026-04-05 | Docs automation now copies review artifacts into `docs/generated` and the public-docs PR workflow can use an optional dedicated PR token (`DOCS_PR_TOKEN`) instead of the default GitHub token. | Primarily internal automation/repository metadata impact; no confirmed product-user data change. | Review needed | Confirm generated review files do not expose sensitive internal notes beyond intended repository audiences and verify token scope/permissions are minimal.",
+  "privacy_inventory_changes": [
+    {
+      "data_area": "Generated review artifacts in repository",
+      "change": "Automation now copies session summary, documentation review, privacy review, devlog scaffold, changelog draft, and result JSON into `docs/generated`.",
+      "risk": "medium",
+      "policy_note": "Needs review to confirm these generated files do not broaden exposure of internal/privacy analysis beyond intended collaborators."
+    },
+    {
+      "data_area": "Workflow authentication for PR creation",
+      "change": "Public-docs PR workflow now prefers `DOCS_PR_TOKEN` when present, otherwise falls back to `GITHUB_TOKEN`.",
+      "risk": "medium",
+      "policy_note": "Security/privacy review should verify least-privilege token scope and whether repository automation documentation should mention internal handling requirements."
+    }
+  ],
+  "devlog_scaffold": {
+    "suggested_title": "Improving the docs handoff workflow for review and publishing",
+    "header_suggestions": [
+      "What changed in the docs automation flow",
+      "How review artifacts are now surfaced for humans",
+      "Workflow guardrails to prevent noisy reruns",
+      "Follow-up checks before enabling in wider use"
+    ],
+    "reflection_prompts": [
+      "Why was it useful to materialize review artifacts into the repository instead of leaving them only as workflow artifacts?",
+      "What problem does ignoring `docs/generated` solve in the automation chain?",
+      "When should a dedicated token be used for PR creation, and what safeguards matter most?",
+      "What parts of this workflow still require deliberate human review before publishing?"
+    ],
+    "caution_notes": "Keep the eventual public devlog high-level. Do not include token names beyond what is already intentionally documented, permission details, internal workflow mechanics, or any sensitive repository/security configuration."
+  }
+}
