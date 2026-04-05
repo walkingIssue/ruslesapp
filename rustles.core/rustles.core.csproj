@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MaxRev.Gdal.Core" Version="3.12.0.427" />
+    <PackageReference Include="MaxRev.Gdal.LinuxRuntime.Minimal" Version="3.12.0.427" />
+    <PackageReference Include="MaxRev.Gdal.LinuxRuntime.Minimal.arm64" Version="3.12.0.427" />
+    <PackageReference Include="MaxRev.Gdal.LinuxRuntime.Minimal.x64" Version="3.12.0.427" />
+    <PackageReference Include="MaxRev.Gdal.WindowsRuntime.Minimal" Version="3.12.0.427" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Graph" Version="5.99.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Aggregates\" />
+    <Folder Include="Assets\" />
+    <Folder Include="Registrations\" />
+    <Folder Include="Systems\RoomHandlers\Abstractions\" />
+    <Folder Include="Validations\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Assets\Raster4M_Current_4326.tif">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\Raster_Current_4326.tif">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
