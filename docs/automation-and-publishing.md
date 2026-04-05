@@ -36,6 +36,7 @@ That PR contains:
 
 - a draft changelog entry when one was recommended
 - a draft devlog starter file with required Astro frontmatter
+- generated review files under `docs/generated`
 
 The generated branch is `docs-closeout/public-docs`.
 
@@ -49,7 +50,7 @@ Before merge:
 
 - rewrite the devlog in your own voice
 - review the changelog draft
-- review any privacy/data-inventory proposal from the artifact
+- review the generated internal and privacy notes in `docs/generated`
 - adjust `draft`, `summary`, and any optional frontmatter fields as needed
 
 ### 4. Merging public docs triggers the site publish handoff
@@ -67,6 +68,7 @@ Deployment details for the public site are intentionally not duplicated here. Th
 
 The automation avoids stateful tracking by using event and path boundaries:
 
+- `docs-closeout` ignores `docs/generated/**`
 - `docs-closeout` ignores `docs/devlog/**` and `docs/changelog/**`
 - the draft-docs PR only contains public docs files
 - `notify-rustles-web` only reacts to public docs landing on `main`
@@ -87,6 +89,7 @@ That keeps the flow linear:
 - data-inventory proposals
 - devlog header suggestions
 - draft public-doc starter files
+- generated review files under `docs/generated`
 
 ### Must remain human-reviewed
 
@@ -105,6 +108,8 @@ Set these GitHub items in this repo before enabling the workflows:
 - variable: `OPENAI_REASONING_EFFORT`
   - recommended starting value: `low`
 - secret: `RUSTLES_WEB_REPO_TOKEN`
+- secret: `DOCS_PR_TOKEN`
+  - optional but recommended if you want to scope PR creation to a dedicated token instead of enabling repo-wide Actions PR creation
 - variable: `RUSTLES_WEB_REPOSITORY`
   - format: `owner/repo`
 - variable: `RUSTLES_APP_REPOSITORY`

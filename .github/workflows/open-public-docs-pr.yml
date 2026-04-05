@@ -59,7 +59,7 @@ jobs:
       - name: Create or update docs PR
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.DOCS_PR_TOKEN != '' && secrets.DOCS_PR_TOKEN || secrets.GITHUB_TOKEN }}
           commit-message: "docs: draft public content from docs closeout"
           branch: docs-closeout/public-docs
           delete-branch: true
@@ -70,10 +70,12 @@ jobs:
             Included here:
             - draft changelog content when a changelog entry was recommended
             - a draft devlog starter file with required Astro frontmatter
+            - generated review docs under `docs/generated`
 
             Before merge:
             - rewrite the devlog in your own voice
             - review the changelog for truthfulness and tone
+            - review the generated internal and privacy notes
             - adjust `draft`, `summary`, and any optional metadata as needed
           labels: |
             documentation

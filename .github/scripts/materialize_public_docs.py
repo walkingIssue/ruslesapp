@@ -104,6 +104,25 @@ def build_devlog_doc(result: dict) -> tuple[str, str]:
     return slug, "\n".join(lines)
 
 
+def copy_review_artifacts(artifact_dir: Path, repo_root: Path) -> None:
+    generated_dir = repo_root / "docs" / "generated"
+    generated_dir.mkdir(parents=True, exist_ok=True)
+
+    review_files = {
+        "session-summary.md": "session-summary.md",
+        "documentation-review.md": "documentation-review.md",
+        "privacy-review.md": "privacy-review.md",
+        "devlog-scaffold.md": "devlog-scaffold.md",
+        "changelog-draft.md": "changelog-draft.md",
+        "result.json": "result.json",
+    }
+
+    for source_name, target_name in review_files.items():
+        source = artifact_dir / source_name
+        target = generated_dir / target_name
+        target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--artifact-dir", required=True)
@@ -115,6 +134,8 @@ def main() -> int:
 
     result_path = artifact_dir / "result.json"
     result = json.loads(result_path.read_text(encoding="utf-8"))
+
+    copy_review_artifacts(artifact_dir, repo_root)
 
     changelog_doc = build_changelog_doc(result)
     if changelog_doc is not None:

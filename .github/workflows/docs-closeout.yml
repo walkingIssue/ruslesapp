@@ -9,12 +9,14 @@ on:
       - ready_for_review
       - edited
     paths-ignore:
+      - docs/generated/**
       - docs/devlog/**
       - docs/changelog/**
   push:
     branches:
       - main
     paths-ignore:
+      - docs/generated/**
       - docs/devlog/**
       - docs/changelog/**
   workflow_dispatch:
