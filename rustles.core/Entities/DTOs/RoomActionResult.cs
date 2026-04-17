@@ -2,5 +2,5 @@ using rustles.core.Shared;
 
 namespace rustles.core.Entities.DTOs
 {
-    public record RoomActionResult(Guid UserId, ActionResult Result);
+    public record RoomActionResult(Guid UserId, SystemAction Result);
 }

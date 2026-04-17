@@ -1,49 +1,58 @@
+using Microsoft.Extensions.Hosting;
+
+using rustles.core.Entities;
+using rustles.core.Systems.GDAL.Abstractions;
 using rustles.core.Systems.ResolutionQue.Abstractions;
+
+using System.Threading.Channels;
+
+using static rustles.core.Systems.ResolutionQue.CompletionSink;
 
 namespace rustles.core.Systems.ResolutionQue
 {
-    public class CompletionSink<TResult> : ICompletionsink<TResult>
+    public class CompletionSink : BackgroundService, ICompletionsink
     {
-        readonly TaskCompletionSource<TResult> _source;
-        readonly Func<TResult> _work;
-        readonly CancellationToken _token;
-        public CompletionSink(
-            TaskCompletionSource<TResult> source,
-            Func<TResult> work,
-            CancellationToken token)
+        private readonly Channel<TileWorkResult> _input;
+        private readonly Channel<AssignUserRoom> _output;
+        private readonly IResolveMunip _resolveMunip;
+        private readonly ITileBatcher<TileKey> _batcher;
+
+        public CompletionSink(ITileWorkResolver resolver, IResolveMunip resolveMunip, ITileBatcher<TileKey> batcher)
         {
-            _source = source;
-            _work = work;
-            _token = token;
+            _batcher = batcher;
+            _input = resolver.GeotileWorkChannel;
+            _resolveMunip = resolveMunip;
+            _output = Channel.CreateBounded<AssignUserRoom>(new BoundedChannelOptions(100)
+            {
+                SingleReader = false,
+                SingleWriter = true,
+                FullMode = BoundedChannelFullMode.DropWrite,
+                AllowSynchronousContinuations = true,
+            });
         }
 
-        public Task HandleCallerPromise()
+        public Channel<AssignUserRoom> UserRoomChannel => _output;
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            return new Task(() =>
+            while (!stoppingToken.IsCancellationRequested)
             {
-                try {
-                    TResult? res = default;
-
-                    if(!_token.IsCancellationRequested)
-                        res = _work();
-
-                    if (_token.IsCancellationRequested)
-                        _source.TrySetCanceled(_token);
-
-                    if(!_token.IsCancellationRequested && res is not null)
-                        _source.TrySetResult(res);
-
-                    throw new Exception("Work had no return");
-                }
-                catch(Exception exc)
+                var tileResult = await _input.Reader.ReadAsync(stoppingToken);
+                foreach (var request in tileResult.RequestCell.Values)
                 {
-                    _source.TrySetException(exc);
-                    return;
+                    if (_batcher.HotCache.TryGetValue(request.UserId, out var cachedValue) ||
+                        _batcher.DequeAllClient.ContainsKey(request.UserId))
+                        continue;
+
+                    var result = new AssignUserRoom(
+                        request.UserId,
+                        request.RequestId,
+                        tileResult.MunipId,
+                        _resolveMunip.GetMunipNaturalName(tileResult.MunipId));
+
+                    await _output.Writer.WriteAsync(result, stoppingToken);
                 }
-            },
-            _token,
-            TaskCreationOptions.PreferFairness | 
-            TaskCreationOptions.RunContinuationsAsynchronously);
+            }
         }
     }
 }

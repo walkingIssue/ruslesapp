@@ -1,7 +1,11 @@
+using rustles.core.Entities;
+
+using System.Threading.Channels;
+
 namespace rustles.core.Systems.ResolutionQue.Abstractions
 {
-    public interface ICompletionsink<TResult>
+    public interface ICompletionsink
     {
-        Task HandleCallerPromise();
+        Channel<AssignUserRoom> UserRoomChannel { get; }
     }
 }

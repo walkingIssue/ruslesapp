@@ -24,7 +24,7 @@ using rustles.core.Entities.DTOs;
  */
 namespace rustles.core.Systems.GDAL.Abstractions
 {
-    public interface IHighResolutionResolve<T> : IGeoRasterAccess<GeoActionResult<T>>
+    public interface IHighResolutionResolve<T> : IGeoRasterAccess
     {
 
     }

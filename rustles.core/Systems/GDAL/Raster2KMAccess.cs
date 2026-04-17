@@ -23,7 +23,7 @@ namespace rustles.core.Systems.GDAL
         {
             var request = _transposition.TransposeToRaster(longitude, lattitude, RasterResolution.R_200M);
             int[] buffer = new int[2];
-            _rasterBand.ReadRaster(request.Long, request.lat, 1, 1, buffer, 1, 1, 0, 0);
+            _rasterBand.ReadRaster(request.longi, request.latti, 1, 1, buffer, 1, 1, 0, 0);
             _name.GetMunipNaturalName(buffer[0]);
             return _name.GetMunicipality(buffer[0]);
         }

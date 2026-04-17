@@ -24,5 +24,5 @@
 namespace rustles.core.Shared
 {
     [Flags]
-    public enum ActionResult { Ok=0, Failed=1, Miss=2, Unresolvable=4, FileMissing=8, Error = 16, UnAuthorized = 32 }
+    public enum SystemAction { Ok=0, Failed=1, Miss=2, Unresolvable=4, FileMissing=8, Error = 16, UnAuthorized = 32, Superseded = 64 }
 }

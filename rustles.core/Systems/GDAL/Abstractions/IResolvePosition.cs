@@ -24,8 +24,9 @@ using rustles.core.Entities.DTOs;
  */
 namespace rustles.core.Systems.GDAL.Abstractions
 {
-    public interface IResolvePosition : IGeoRasterAccess<Municipality>
+    public interface IResolvePosition
     {
-
+        Municipality ResolvePosition(double longitude, double lattitude);
+        Task<Municipality> ResolvePositionAsync(double longitude, double lattitude);
     }
 }

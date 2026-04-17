@@ -24,5 +24,5 @@
 namespace rustles.core.Systems.GDAL.Enums
 {
     [Flags]
-    public enum RasterResolution { R_200M, R_400M, R_800M }
+    public enum RasterResolution { R_200M, R_400M, R_800M, R_10M, R_5M }
 }

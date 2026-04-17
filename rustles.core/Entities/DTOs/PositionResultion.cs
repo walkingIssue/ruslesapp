@@ -25,5 +25,5 @@ using rustles.core.Shared;
  */
 namespace rustles.core.Entities.DTOs
 {
-    public record PositionResolution<T, U>(ValueTask<T>? Awaiter, Func<U> ProgressStatus, ActionResult Result);
+    public record PositionResolution<T, U>(ValueTask<T>? Awaiter, Func<U> ProgressStatus, SystemAction Result);
 }

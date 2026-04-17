@@ -15,7 +15,7 @@ namespace rustles.core.Systems.MunipRoomManager
 
     public interface IUserRoomResovler
     {
-        ActionResult InsertUser();
+        SystemAction InsertUser();
         IManageUserRoomMessage InsertUserAsync();
         void RemoveUser();
         Task RemoveUserAsync();

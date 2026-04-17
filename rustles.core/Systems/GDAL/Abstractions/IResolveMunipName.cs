@@ -29,7 +29,7 @@ namespace rustles.core.Systems.GDAL.Abstractions
     {
         public string[] GetMunipNaturalName(int Id);
         public int GetMunipId(string MunipName);
-        public Municipality GetMunicipality(int Id);
-        public Task<Municipality> GetMunicipalityAsync(int Id);
+        public Municipality? GetMunicipality(int Id);
+        public Task<Municipality?> GetMunicipalityAsync(int Id);
     }
 }

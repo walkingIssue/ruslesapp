@@ -3,68 +3,81 @@ using rustles.core.Entities;
 using rustles.core.Systems.GDAL.Abstractions;
 using rustles.core.Shared;
 using System.Runtime.InteropServices.Marshalling;
+using Microsoft.Kiota.Abstractions.Extensions;
 using rustles.core.Systems.ResolutionQue.Abstractions;
+using Microsoft.Graph.Models;
 
 namespace rustles.core.Systems.ResolutionQue
 {
-
-    //what consumes this? nothing it's a toplevel method that 1. gets consumed by a "engine" 2. gets cosumed by the application layer directly
-    public class PositionResolveQue<U> : IRequestPostion<U>
+    
+    /// <summary>
+    /// Takes responsibility for request validation, if we don't resolve within a client window and get a request for a new position
+    /// This prepares us to validate requests more granurally
+    /// </summary>
+    public class PositionResolveQue : IRequestPostion
     {
-        readonly IBatcher<AssignUserRoom, ClientPosition> _batcher;
-        readonly IFactory<PositionResolution<AssignUserRoom, U>> _posResFactory;
-
-        IOrderedEnumerable<int> _inputs;
+        readonly IBatcher<BatchRequest> _batcher;
+        readonly ITransposeClientCoordinates _transpose;
+        readonly IValidateTransposedCoordinates _validator;
+        readonly IFactory<BatchRequest> _requestFactory;
 
         public PositionResolveQue(
-            IBatcher<AssignUserRoom, ClientPosition> batcher,
-            IFactory<PositionResolution<AssignUserRoom, U>> posResFactory)
+            ITransposeClientCoordinates transpose,
+            IValidateTransposedCoordinates validator,
+            IBatcher<BatchRequest> batcher,
+            IFactory<BatchRequest> requestFactory)
         {
+            _transpose = transpose;
+            _validator = validator;
             _batcher = batcher;
-            _posResFactory = posResFactory;
-        }
-        public virtual void DequeRequest(ref ClientPosition position)
-        {
-            _batcher.DeQue(position);
+            _requestFactory = requestFactory;
         }
 
-        public virtual PositionResolution<AssignUserRoom, U> QueResultionRequest(
-            ClientPosition    pos,
-            Action<int, U>    progressCallback,
-            CancellationToken token)
-            /*
-             * there has to be some way to.. at this stage start the process of deciding the tiling/windowing for the read
-             * can of worms that can wait 
-             */
+        public void DequeRequest(Guid userId)
         {
-            _inputs = _inputs.Append(pos.GetHashCode()).Order();
-
-            var callerTask = _batcher.Enque(pos, token);
-            //public record PositionResolution<T, U>(ValueTask<T> Awaiter, Func<U> ProgressStatus, ActionResult Result);
-            return _posResFactory.Create(callerTask, () => ProgressReport(progressCallback), ActionResult.Ok);
-        }
-        U ProgressReport(Action<int, U> handler)
-        {
-            U? def = default;
-            handler(0, def);
-            if (def is null)
-                throw new ArgumentException("You, in fact, didnt handle the instantiation correctly :)");
-
-            return def;
+            _batcher.DeQue(userId);
         }
         /// <summary>
-        /// Not sure if there will be a need for a awaitable implementation...
-        /// actually there will be, if we create a max amount of batches, and won't be able to create any more
-        /// this will just hang the thread....
+        /// Top level resolution que
         /// </summary>
-        /// <param name="pos"></param>
-        /// <param name="progressCallback"></param>
-        /// <param name="token"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException">call this at your own risk</exception>
-        public virtual async Task<PositionResolution<AssignUserRoom, U>> QueResultionRequestAsync(ClientPosition pos, Action<int, U> progressCallback, CancellationToken token)
+        /// <param name="requestId">request the push service will be able to resolve once work is complete</param>
+        /// <param name="position">client gps cooridnates</param>
+        /// <returns>SystemAction Flags combination appropriate for reqeust</returns>
+        public SystemAction QueResultionRequest(Guid requestId, ClientPosition position)
         {
-            throw new NotImplementedException();
+            var gdalCoorinates = _transpose.TransposeToRaster(position.longi, position.latti, GDAL.Enums.RasterResolution.R_5M);
+
+            if(!_validator.Validate(gdalCoorinates, GDAL.Enums.RasterResolution.R_5M))
+                return SystemAction.Failed|SystemAction.Miss|SystemAction.Unresolvable;
+
+            return _batcher.Enque(MutateBatchRequest(requestId, gdalCoorinates, position.UserId), GDAL.Enums.RasterResolution.R_5M);
+        }
+
+        private BatchRequest MutateBatchRequest(Guid requestId, ClientCell position, Guid userId)
+        {
+            var request = _requestFactory.Create();
+            request.Position = position;
+            request.RequestId = requestId;
+            request.ClientId = userId;
+
+            return request;
         }
     }
+
+    public class BatchRequest
+    {
+        public Guid RequestId { get; set; }
+        public Guid ClientId { get; set; }
+        public ClientCell Position { get; set; }
+        public BatchRequest(Guid requestId, ClientCell position)
+        {
+            RequestId = requestId;
+            Position = position;
+        }
+    };
+
+public interface IValidateTransposedCoordinates
+{
+    public bool Validate(ClientCell position, GDAL.Enums.RasterResolution resolution);
+}
 }

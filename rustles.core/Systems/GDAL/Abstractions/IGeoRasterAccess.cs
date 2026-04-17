@@ -1,4 +1,7 @@
+using rustles.core.Systems.ResolutionQue;
+
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
@@ -29,16 +32,42 @@ using System.Threading.Tasks;
  */
 namespace rustles.core.Systems.GDAL.Abstractions
 {
-    public interface IGeoRasterAccess<TResultObject>
+    public interface IGeoRasterAccess
     {
-        public TResultObject ResolvePosition(double longitude, double lattitude);
         /// <summary>
-        /// Prefer the synchronous lookup
+        /// Lightning fast lookup of a position
+        /// Preserves callers order of objects in return
+        /// expect the indexes in the return to tell the munipId of the object in the tileLocalizedIds
         /// </summary>
-        /// <param name="longitude"></param>
-        /// <param name="lattitude"></param>
+        /// <param name="tileKey"></param>
+        /// <param name="tileLocalizedIds"></param>
         /// <returns></returns>
-        public Task<TResultObject> ResolvePositionAsync(double longitude, double lattitude);
+        public int ResolvePosition(TileKey tileKey, ReadOnlySpan<ushort> tileLocalizedIds, Span<int> result);
+    }
 
+    public class GeoRasterAccess : IGeoRasterAccess
+    {
+        private object _lock = new object();
+        private OSGeo.GDAL.Dataset _dataset;
+        public GeoRasterAccess(OSGeo.GDAL.Dataset dataset)
+        {
+            _dataset = dataset;
+        }
+        public int ResolvePosition(TileKey tileKey, ReadOnlySpan<ushort> tileLocalizedIds, Span<int> result)
+        {
+            int[] buffer = new int[256 * 256];
+            _dataset
+                .GetRasterBand(1)
+                .ReadRaster(tileKey.RasterIdY * 256, tileKey.RasterIdX * 256, 256, 256, buffer, 256, 256, 0, 0);
+
+            if(result.Length < 1)
+                throw new ArgumentException("Result too short.", nameof(result));
+
+            for(int i = 0; i < tileLocalizedIds.Length; i++)
+            {
+                result[i] = buffer[tileLocalizedIds[i]];
+            }
+            return buffer.Length;
+        }
     }
 }

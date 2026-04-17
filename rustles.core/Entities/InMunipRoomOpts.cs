@@ -6,7 +6,7 @@ namespace rustles.core.Entities
         bool? isPrivate,
         bool? isTransient,
         bool? isLocationTied,
-        Position? position,
+        RasterPosition? position,
         bool? adverstise,
         int? maxUsers,
         bool? shareHistory,
@@ -15,7 +15,7 @@ namespace rustles.core.Entities
         bool IsPrivate { get; init; } = isPrivate ?? false;
         bool IsTransient { get; init; } = isTransient ?? true;
         bool IsLocationTied { get; init; } = isLocationTied ?? false;
-        Position? Position { get; init; } = position;
+        RasterPosition? Position { get; init; } = position;
         bool Advertise { get; init; } = adverstise ?? false;
         int? maxUsers { get; init; } = maxUsers ?? int.MaxValue;
         bool ShareHistory { get; init; } = shareHistory ?? false;

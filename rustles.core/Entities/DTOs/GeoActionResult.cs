@@ -28,7 +28,7 @@ namespace rustles.core.Entities.DTOs
     public struct GeoActionResult<T>
     {
         public T? Value { get; init; }
-        public ActionResult ActionResult { get; set; }
+        public SystemAction ActionResult { get; set; }
         public Exception? Exception { get; set; }
     }
 }

@@ -1,5 +1,6 @@
 using rustles.core.Entities;
 using rustles.core.Entities.DTOs;
+using rustles.core.Shared;
 /*
 0.  objektidentitet                     | String
 1.  objektversion                       | Integer64
@@ -25,7 +26,7 @@ using rustles.core.Entities.DTOs;
  */
 namespace rustles.core.Systems.GDAL.Abstractions
 {
-    public interface IRequestPostion<U>
+    public interface IRequestPostion
     {
         /// <summary>
         /// 
@@ -35,13 +36,12 @@ namespace rustles.core.Systems.GDAL.Abstractions
         /// will ge shoved into the callback function in the return object</param>
         /// <param name="token"></param>
         /// <returns></returns>
-        PositionResolution<AssignUserRoom, U> QueResultionRequest(ClientPosition position, Action<int, U> progressCallback, CancellationToken token);
-        Task<PositionResolution<AssignUserRoom, U>> QueResultionRequestAsync(ClientPosition position, Action<int, U> progressCallback, CancellationToken token);
+        SystemAction QueResultionRequest(Guid requestId, ClientPosition position);
         /// <summary>
         /// t
         /// </summary>
         /// <param name="position"></param>
         /// <exception cref="ArgumentException">original position argument used to que the task!</exception>
-        void DequeRequest(ref ClientPosition clientPosition);
+        void DequeRequest(Guid requestId);
     }
 }

@@ -1,3 +1,5 @@
+using rustles.core.Shared;
+
 namespace rustles.core.Systems.ResolutionQue.Abstractions
 {
     /*
@@ -30,7 +32,7 @@ namespace rustles.core.Systems.ResolutionQue.Abstractions
     // This also means that whatever implements this type has to consume the BulkDispatcher, which is fine...?
     //
     //  
-    public interface IBatcher<TResult, TReference>
+    public interface IBatcher<TReference>
     {
         //implementation detail
         //ICollection<IBatched<TResult, TReference>> Batch { get; }
@@ -42,22 +44,13 @@ namespace rustles.core.Systems.ResolutionQue.Abstractions
         /// <param name="request"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        TResult Enque(TReference request, CancellationToken token);
+        SystemAction Enque(TReference request, GDAL.Enums.RasterResolution resolution);
 
         /// <summary>
-        /// this has to be here in order to account for when the amount of threads is maxxed and we can't dispatch another run
-        /// otherwise the host will hang... granted i have no clue how to even start implementing that :)
+        /// all requests that are enqued get dequed
+        /// effectivly client disconnect.
         /// </summary>
-        /// <param name="request"></param>
-        /// <param name="token"></param>
-        /// <exception cref="NotImplementedException">Not sure if there's a use for this</exception>
-        /// <returns></returns>
-        ValueTask<TResult> EnqueAsync(TReference request, CancellationToken token);
-
-        /// <summary>
-        /// Inserts the dequed object refence into the deque collection, so we don't resolve a position unnessecarily
-        /// </summary>
-        /// <param name="request"></param>
-        void DeQue(TReference request);
+        /// <param name="userId"></param>
+        void DeQue(Guid userId);
     }
 }

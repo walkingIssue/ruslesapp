@@ -23,11 +23,5 @@
  */
 namespace rustles.core.Entities.DTOs
 {
-    public record Municipality(string? name, int? munipCode, int? countyCode, int? countryCode)
-    {
-        public string? Name { get; set; } = name;
-        public int MunipCode { get; set; } = munipCode ?? -1;
-        public int CountyCode { get; set; } = countyCode ?? -1;
-        public int CountryCode { get; set; } = countryCode ?? -1;
-    }
+    public record Municipality(string? name, int? munipCode = -1, int? countyCode = -1, int? countryCode = -1);
 }

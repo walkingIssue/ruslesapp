@@ -3,7 +3,7 @@ title: "Improving the docs handoff workflow for review and publishing"
 date: "2026-04-05"
 slug: "improving-the-docs-handoff-workflow-for-review-and-publishing"
 summary: "Public docs full automation"
-draft: true
+draft: false
 ---
 
 ## Automated public docs deployment
