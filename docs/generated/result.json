@@ -1,29 +1,38 @@
 {
-  "session_summary": "The diff extends the docs automation so review artifacts are copied into `docs/generated`, updates workflows to ignore that generated directory to avoid retriggering `docs-closeout`, adds an optional dedicated PR token fallback in the public-docs PR workflow, and updates the internal automation guide to document the new generated review files and token option.",
+  "session_summary": "Large documentation-oriented change set with supporting core rewrite work and new tests. The repo gained extensive internal docs around geospatial raster design, batching/state-model plans, product staging, MVP specs, and draft privacy/terms materials. In code, the georesolution pipeline was refactored toward tile batching and async-style staged processing, with new test coverage around batching and request identity. Privacy-related docs now state a stricter MVP direction: no persisted location data, no persisted sent messages, no cookies, and stored registration acknowledgements/block relationships.",
   "human_actions": [
-    "Review whether `docs/generated/**` should be committed in docs PRs or remain purely generated output.",
-    "Confirm the optional `DOCS_PR_TOKEN` secret should be added and scoped appropriately if used for PR creation.",
-    "Review generated internal/privacy notes in `docs/generated` before merging any public-docs PR.",
-    "Verify the automation guide remains aligned with actual workflow behavior after these changes."
+    "Review the new geospatial design docs against the current code and assets, especially where documents describe projected rasters, batching ownership, or future pipeline stages rather than already-shipped behavior.",
+    "Review `docs/geodata-raster-pipeline-technical.md` for local machine path references (`C:\\Users\\...`) and replace or clearly label them as local-only notes before wider circulation.",
+    "Confirm whether the new privacy-direction docs match actual implementation rather than intended MVP policy, especially for account fields, acknowledgement storage, block persistence, cookies, message persistence, and any location/log retention.",
+    "Review the new `spec/mvp/*` feature and interaction files for consistency with current product scope and terminology.",
+    "Check whether existing architecture docs such as `architecture-rustles-core.md` now need a refresh to reflect the rewritten `ResolutionQue` structure and new test projects.",
+    "Decide whether the new `docs/devlog/...` entry is ready for publication now that its frontmatter changed from `draft: true` to `draft: false`.",
+    "Verify solution/test-project changes (`core`, `rustles.core.tests`, `rustles.sln`) are intentional and not duplicate or placeholder test scaffolding."
   ],
   "doc_updates": [
     {
+      "target_file": "docs/architecture-rustles-core.md",
+      "action": "update",
+      "reason": "Core georesolution responsibilities and batching/state ownership changed substantially, but the architecture docs listed in the index were not updated in this diff.",
+      "notes": "Add a short factual section summarizing the current `ResolutionQue` split: ingress, batching state, flusher/channel handoff, and completion filtering."
+    },
+    {
       "target_file": "docs/automation-and-publishing.md",
       "action": "update",
-      "reason": "Already updated in the diff to reflect new generated review files, workflow ignore rules, and optional PR token configuration.",
-      "notes": "Human review should confirm the documented behavior matches the workflows and script changes."
+      "reason": "The repo now contains many more internal drafts plus at least one publishable devlog status change.",
+      "notes": "Clarify review expectations for internal drafts, privacy/legal drafts, and when a docs-only session should or should not generate public-content follow-up."
+    },
+    {
+      "target_file": "docs/geodata-raster-pipeline-technical.md",
+      "action": "update",
+      "reason": "The new file contains local absolute filesystem paths that are fragile and may leak workstation-specific context.",
+      "notes": "Convert to repo-relative references where possible, or explicitly mark external/local references as non-portable research notes."
     },
     {
       "target_file": "docs/data-inventory-and-privacy-impact.md",
-      "action": "none",
-      "reason": "No clear product-data handling change is shown in the diff.",
-      "notes": "There is an automation/security configuration change involving workflow tokens, but this is not enough to claim a product privacy-policy update without human review."
-    },
-    {
-      "target_file": "docs/generated/*",
-      "action": "create",
-      "reason": "The script now materializes review artifacts into `docs/generated` during the docs handoff flow.",
-      "notes": "These are generated review files, not canonical long-lived documentation. Confirm repository expectations for generated content."
+      "action": "update",
+      "reason": "The file was updated, but the changes are policy-direction assertions and should be kept aligned with implementation status.",
+      "notes": "Add a short 'implementation status / assumptions' note if some items remain planned rather than coded."
     }
   ],
   "changelog": {
@@ -36,36 +45,60 @@
     "body_markdown": ""
   },
   "privacy_needs_review": true,
-  "privacy_summary": "No user-facing product data collection change is evident, but the automation now copies review artifacts into the repository workspace and the PR creation workflow can use an optional dedicated `DOCS_PR_TOKEN`. Because generated review artifacts may include internal/privacy notes and token usage affects repository automation permissions, this should receive privacy/security review rather than being treated as a no-impact change.",
-  "privacy_proposed_log_entry": "2026-04-05 | Docs automation now copies review artifacts into `docs/generated` and the public-docs PR workflow can use an optional dedicated PR token (`DOCS_PR_TOKEN`) instead of the default GitHub token. | Primarily internal automation/repository metadata impact; no confirmed product-user data change. | Review needed | Confirm generated review files do not expose sensitive internal notes beyond intended repository audiences and verify token scope/permissions are minimal.",
+  "privacy_summary": "Privacy review is required. This diff adds or revises multiple privacy-facing and operational-policy documents asserting that the MVP will store account data, username, age/privacy acknowledgements, and block relationships, while not persisting location data, sent messages, or cookies. The diff also adds MVP specs around authentication, blocking, privacy notice, and municipality chat. These appear to be documentation and product-direction changes more than clearly implemented data-handling changes, so they should be treated as review-required assumptions until verified against code and hosting behavior.",
+  "privacy_proposed_log_entry": "2026-04-17 | Documentation and MVP-spec expansion around privacy/account/location handling | Review required | Added draft privacy policy, operational data policy, and MVP specs stating current intended MVP direction: store core account data plus registration acknowledgements and block relationships; do not persist location data, sent messages, or cookies. Treat as policy-direction documentation pending implementation verification.",
   "privacy_inventory_changes": [
     {
-      "data_area": "Generated review artifacts in repository",
-      "change": "Automation now copies session summary, documentation review, privacy review, devlog scaffold, changelog draft, and result JSON into `docs/generated`.",
+      "data_area": "Registration acknowledgement data",
+      "change": "Docs now explicitly assume storage of age self-attestation and privacy-notice acknowledgement metadata during account creation.",
       "risk": "medium",
-      "policy_note": "Needs review to confirm these generated files do not broaden exposure of internal/privacy analysis beyond intended collaborators."
+      "policy_note": "Needs review against actual registration implementation and minimum-metadata retention decisions."
     },
     {
-      "data_area": "Workflow authentication for PR creation",
-      "change": "Public-docs PR workflow now prefers `DOCS_PR_TOKEN` when present, otherwise falls back to `GITHUB_TOKEN`.",
+      "data_area": "Block relationships",
+      "change": "Specs and privacy docs now treat user blocking as a persisted safety relationship.",
       "risk": "medium",
-      "policy_note": "Security/privacy review should verify least-privilege token scope and whether repository automation documentation should mention internal handling requirements."
+      "policy_note": "If implemented, public privacy-facing documents should mention that block records are stored and used for filtering/safety behavior."
+    },
+    {
+      "data_area": "Location data",
+      "change": "Docs tighten MVP direction to runtime-only municipality resolution with no persisted location data.",
+      "risk": "high",
+      "policy_note": "Verify application logs, telemetry, infrastructure defaults, and any persistence layer do not retain coordinates or location history."
+    },
+    {
+      "data_area": "Messages",
+      "change": "Docs now state sent messages are not persisted in MVP even though live municipality chat exists.",
+      "risk": "high",
+      "policy_note": "Verify runtime buffers, diagnostics, queues, and infrastructure do not effectively create message retention."
+    },
+    {
+      "data_area": "Cookies and client storage",
+      "change": "Docs now state no cookies in MVP.",
+      "risk": "medium",
+      "policy_note": "Verify auth/session approach and check that no cookies or equivalent client persistence are introduced by framework defaults."
+    },
+    {
+      "data_area": "Operational logs",
+      "change": "New policy drafts emphasize minimal logging and avoiding message content, precise location, tokens, and unnecessary identifiers.",
+      "risk": "medium",
+      "policy_note": "Needs review against actual host/runtime logging configuration, especially default ASP.NET Core and infrastructure behavior."
     }
   ],
   "devlog_scaffold": {
-    "suggested_title": "Improving the docs handoff workflow for review and publishing",
+    "suggested_title": "Documenting the geospatial pipeline and tightening MVP privacy assumptions",
     "header_suggestions": [
-      "What changed in the docs automation flow",
-      "How review artifacts are now surfaced for humans",
-      "Workflow guardrails to prevent noisy reruns",
-      "Follow-up checks before enabling in wider use"
+      "What we clarified in the geospatial docs",
+      "How the resolution pipeline responsibilities are being separated",
+      "What changed in the MVP specs and privacy direction",
+      "What still needs verification before release"
     ],
     "reflection_prompts": [
-      "Why was it useful to materialize review artifacts into the repository instead of leaving them only as workflow artifacts?",
-      "What problem does ignoring `docs/generated` solve in the automation chain?",
-      "When should a dedicated token be used for PR creation, and what safeguards matter most?",
-      "What parts of this workflow still require deliberate human review before publishing?"
+      "Which of the new documents describe current verified behavior versus intended direction?",
+      "What did the new tests and refactor make easier to reason about in the resolution pipeline?",
+      "Which privacy assumptions still need implementation proof before they can be treated as settled?",
+      "What follow-up docs should condense this large internal write-up into a smaller maintainable architecture summary?"
     ],
-    "caution_notes": "Keep the eventual public devlog high-level. Do not include token names beyond what is already intentionally documented, permission details, internal workflow mechanics, or any sensitive repository/security configuration."
+    "caution_notes": "If a public devlog is written, keep it high-level. Avoid local filesystem paths, internal-only implementation seams, and detailed privacy/legal claims that have not yet been verified in production configuration. The eventual published file will still need Astro frontmatter fields: `title`, `date`, `slug`, `summary`, and `draft`."
   }
 }
