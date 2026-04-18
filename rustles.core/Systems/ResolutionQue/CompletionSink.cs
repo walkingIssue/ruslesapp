@@ -42,7 +42,10 @@ namespace rustles.core.Systems.ResolutionQue
                 {
                     if (_batcher.HotCache.TryGetValue(request.UserId, out var cachedValue) ||
                         _batcher.DequeAllClient.ContainsKey(request.UserId))
+                    {
+                        _batcher.DequeAllClient.TryRemove(request.UserId, out _);
                         continue;
+                    }
 
                     var result = new AssignUserRoom(
                         request.UserId,

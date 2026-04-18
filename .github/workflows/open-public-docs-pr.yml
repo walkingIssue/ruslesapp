@@ -59,7 +59,7 @@ jobs:
       - name: Create or update docs PR
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.DOCS_PR_TOKEN != '' && secrets.DOCS_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.DOCS_PR_TOKEN || github.token }}
           commit-message: "docs: draft public content from docs closeout"
           branch: docs-closeout/public-docs
           delete-branch: true

@@ -60,7 +60,7 @@ public sealed class BatchFlusherBehaviorTests
                 : new RequestCell(cell, tile);
 
         var requestKey = new RequestUserKey(userId, requestId);
-        requestCell.RequestIds[requestKey.GetHashCode()] = requestKey;
+        requestCell.RequestIds[userId] = requestKey;
 
         if (!state.ComputeIds.TryGetValue(tile, out tileCells))
         {

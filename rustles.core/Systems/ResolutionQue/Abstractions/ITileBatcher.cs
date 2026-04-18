@@ -87,21 +87,32 @@ namespace rustles.core.Systems.ResolutionQue.Abstractions
 
     public class DequedValue(TileKey tileKey, ClientCell cell, RequestUserKey requestUserKey)
     {
-        public TileKey Tile { get; set; } = tileKey; 
+        public TileKey Tile { get; set; } = new TileKey(tileKey); 
         public int TileId => Tile.GetHashCode();
 
         //normalize the cell coordinates to the tile local coordinates to generate a id row-major, 
-        public ushort TileLocalizedId => (ushort)((cell.latti -tileKey.RasterIdX *256) * 256 + (cell.longi -tileKey.RasterIdY * 256));
+        public ushort TileLocalizedId => (ushort)((cell.latti - tileKey.RasterIdY * 256) * 256 + (cell.longi - tileKey.RasterIdX * 256));
         public RequestUserKey RequestUserKey { get; set; } = requestUserKey;
     }
 
 
+    public record ClientCell(int latti, int longi)
+     {
+         private int _hash = HashCode.Combine(latti, longi);
+         public override int GetHashCode()
+         {
+            return _hash;
+         }
+     };
+
     public class RequestCell(ClientCell cell, TileKey parent)
     {
-        public TileKey TileKeyId { get; set; } = parent;
+        public TileKey TileKeyId { get; set; } = new TileKey(parent);
         public ushort TileLocalizedId => CalulateTileLocalizedId(cell, parent);
         public ClientCell Cell => cell;
-        public SortedDictionary<int, RequestUserKey> RequestIds { get; set; } = new SortedDictionary<int, RequestUserKey>();
+
+        //Indexed by userId
+        public SortedDictionary<Guid, RequestUserKey> RequestIds { get; set; } = new SortedDictionary<Guid, RequestUserKey>();
     
 
         /// <summary>
@@ -112,7 +123,7 @@ namespace rustles.core.Systems.ResolutionQue.Abstractions
         /// <returns></returns>
         public static ushort CalulateTileLocalizedId(ClientCell cell, TileKey parent)
         {
-            return (ushort)((cell.latti -parent.RasterIdX *256) * 256 + (cell.longi -parent.RasterIdY * 256));
+            return (ushort)((cell.latti - parent.RasterIdY * 256) * 256 + (cell.longi - parent.RasterIdX * 256));
         }
     }
 
@@ -125,12 +136,4 @@ namespace rustles.core.Systems.ResolutionQue.Abstractions
     }
 
 
-    public record ClientCell(int latti, int longi)
-     {
-         private int _hash = HashCode.Combine(latti, longi);
-         public override int GetHashCode()
-         {
-            return _hash;
-         }
-     };
 }

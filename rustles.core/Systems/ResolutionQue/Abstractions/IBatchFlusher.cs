@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 
 using rustles.core.Events;
 
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Threading.Channels;
 
@@ -39,7 +40,7 @@ namespace rustles.core.Systems.ResolutionQue.Abstractions
             {
                 SingleReader = false,
                 SingleWriter = true,
-                FullMode = BoundedChannelFullMode.DropWrite,
+                FullMode = BoundedChannelFullMode.Wait,
                 AllowSynchronousContinuations = true,
             });
             signalBatchFull.SignalEvent += SignalBatchFull_SignalEvent;
@@ -68,18 +69,16 @@ namespace rustles.core.Systems.ResolutionQue.Abstractions
                 return;
 
 
-            var dequedSnapShot = _tileBatcher.Dequed.ToArray();
+            var dequedSnapShot = _tileBatcher.Dequed.ToDictionary();
             //local snapshot of current ComputeIds
             var tileKeys = _tileBatcher.ComputeIds.ToArray();
+           
 
-            var dequedIds = dequedSnapShot.Select(x => x.Value)
-                .ToHashSet(/*impolement requestidentitycomparer*/);
-
-            
             for(int i = 0; i < tileKeys.Length; i++)
             {
                 if (token.IsCancellationRequested)
                     return;
+
 
                 var tileCellsTransformed = tileKeys[i].Value.Values.ToArray();
                 var geoRasterWorkList = new SortedList<int, IReadOnlyList<RequestUserKey>>();
@@ -89,15 +88,29 @@ namespace rustles.core.Systems.ResolutionQue.Abstractions
                         return;
 
                     var requestIds = tileCellsTransformed[j].RequestIds.Values.ToArray();
-                    geoRasterWorkList.Add(tileCellsTransformed[j].TileLocalizedId, requestIds);
+                    var dequedUserKeys = new List<RequestUserKey>();
 
                     //clean the hotcache, the value will now be computed, and pushed to the client.
                     //unless the client disconnected at which point the completionsink handles that.
                     for(int k = 0; k < requestIds.Length; k++)
+                    {
+                        if(token.IsCancellationRequested)
+                            return;
+
+                        var requestId = requestIds[k].RequestId;
+                        if (dequedSnapShot.TryGetValue(new DequeKey(requestId, tileCellsTransformed[j].Cell), out var _))
+                        {
+                            _tileBatcher.Dequed.TryRemove(new DequeKey(requestId, tileCellsTransformed[j].Cell), out _);
+                            dequedUserKeys.Add(requestIds[k]);
+                        }
+
                        _tileBatcher.HotCache.TryRemove(
-                           new KeyValuePair<Guid, HotcacheValue>(tileCellsTransformed[j].RequestIds[k].UserId,
-                           new HotcacheValue(tileCellsTransformed[j].RequestIds[k].RequestId, tileCellsTransformed[j].Cell,
+                           new KeyValuePair<Guid, HotcacheValue>(requestIds[k].UserId,
+                           new HotcacheValue(requestIds[k].RequestId, tileCellsTransformed[j].Cell,
                            true)));
+                    }
+                    if(tileCellsTransformed.Length > 0) 
+                        geoRasterWorkList.Add(tileCellsTransformed[j].TileLocalizedId, requestIds.Except(dequedUserKeys).ToArray());
                 }
 
                 var finnshedWorkItem = new GeoRasterWorkItem(tileKeys[i].Key, geoRasterWorkList);
@@ -105,6 +118,7 @@ namespace rustles.core.Systems.ResolutionQue.Abstractions
                 if (!_channel.Writer.TryWrite(finnshedWorkItem))
                     await _channel.Writer.WriteAsync(finnshedWorkItem, token);
 
+                _tileBatcher.ComputeIds.TryRemove(tileKeys[i].Key, out _);
                 
             }
         }

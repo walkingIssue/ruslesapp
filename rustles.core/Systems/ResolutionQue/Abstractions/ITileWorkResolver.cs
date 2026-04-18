@@ -45,7 +45,7 @@ namespace rustles.core.Systems.ResolutionQue.Abstractions
                 var tileWork = workItem.TileWork.ToArray();
                 
                 //current tile buffer
-                ushort[] workSpan = new ushort[tileWork.Length - 1];
+                ushort[] workSpan = new ushort[tileWork.Length];
                 
                 //move over the tiles by key is it's the tileLocalizedId
                 //there's a bunch of abstraction rules broken here, alas

@@ -67,7 +67,7 @@ public sealed class BatchedTilingBehaviorTests
         var requestCell = new RequestCell(cell, tile);
         var requestKey = new RequestUserKey(userId, requestId);
 
-        requestCell.RequestIds[requestKey.GetHashCode()] = requestKey;
+        requestCell.RequestIds[userId] = requestKey;
         state.ComputeIds[tile] = new SortedDictionary<int, RequestCell>
         {
             [requestCell.TileLocalizedId] = requestCell

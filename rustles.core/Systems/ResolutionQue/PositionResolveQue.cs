@@ -9,7 +9,7 @@ using Microsoft.Graph.Models;
 
 namespace rustles.core.Systems.ResolutionQue
 {
-    
+
     /// <summary>
     /// Takes responsibility for request validation, if we don't resolve within a client window and get a request for a new position
     /// This prepares us to validate requests more granurally
@@ -40,15 +40,15 @@ namespace rustles.core.Systems.ResolutionQue
         /// <summary>
         /// Top level resolution que
         /// </summary>
-        /// <param name="requestId">request the push service will be able to resolve once work is complete</param>
+        /// <param name="requestId">requestId of user the push service will be able to resolve once work is complete</param>
         /// <param name="position">client gps cooridnates</param>
         /// <returns>SystemAction Flags combination appropriate for reqeust</returns>
         public SystemAction QueResultionRequest(Guid requestId, ClientPosition position)
         {
             var gdalCoorinates = _transpose.TransposeToRaster(position.longi, position.latti, GDAL.Enums.RasterResolution.R_5M);
 
-            if(!_validator.Validate(gdalCoorinates, GDAL.Enums.RasterResolution.R_5M))
-                return SystemAction.Failed|SystemAction.Miss|SystemAction.Unresolvable;
+            if (!_validator.Validate(gdalCoorinates, GDAL.Enums.RasterResolution.R_5M))
+                return SystemAction.Failed | SystemAction.Miss | SystemAction.Unresolvable;
 
             return _batcher.Enque(MutateBatchRequest(requestId, gdalCoorinates, position.UserId), GDAL.Enums.RasterResolution.R_5M);
         }
@@ -76,8 +76,23 @@ namespace rustles.core.Systems.ResolutionQue
         }
     };
 
-public interface IValidateTransposedCoordinates
-{
-    public bool Validate(ClientCell position, GDAL.Enums.RasterResolution resolution);
-}
+    public interface IValidateTransposedCoordinates
+    {
+        public bool Validate(ClientCell position, GDAL.Enums.RasterResolution resolution);
+    }
+
+    public class ValidateTransposedCoordinates : IValidateTransposedCoordinates
+    {
+        private readonly OSGeo.GDAL.Dataset _dataset;
+        public ValidateTransposedCoordinates(OSGeo.GDAL.Dataset dataset)
+        {
+            _dataset = dataset;
+        }
+
+        public bool Validate(ClientCell position, GDAL.Enums.RasterResolution resolution)
+        {
+            return position.latti >= 0 && position.longi >= 0
+                && position.longi < _dataset.RasterXSize && position.latti < _dataset.RasterYSize;
+        }
+    }
 }

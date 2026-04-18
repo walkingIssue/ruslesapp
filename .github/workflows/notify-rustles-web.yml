@@ -1,6 +1,12 @@
 name: Trigger rustlesWeb publish
 
 on:
+  workflow_dispatch:
+    inputs:
+      app_ref:
+        description: Optional rustles_solution ref or SHA for rustlesWeb to publish
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -21,29 +27,29 @@ jobs:
 
     steps:
       - name: Validate website dispatch configuration
-        id: validate
         shell: bash
         env:
           RUSTLES_WEB_REPO_TOKEN: ${{ secrets.RUSTLES_WEB_REPO_TOKEN }}
         run: |
           if [ -z "${RUSTLES_WEB_REPOSITORY}" ]; then
-            echo "RUSTLES_WEB_REPOSITORY is not configured. Skipping website dispatch."
-            echo "should_dispatch=false" >> "${GITHUB_OUTPUT}"
-            exit 0
+            echo "::error::Set the RUSTLES_WEB_REPOSITORY repository variable so docs changes can publish rustlesWeb."
+            exit 1
           fi
           if [ -z "${RUSTLES_WEB_REPO_TOKEN}" ]; then
-            echo "RUSTLES_WEB_REPO_TOKEN is not configured. Skipping website dispatch."
-            echo "should_dispatch=false" >> "${GITHUB_OUTPUT}"
-            exit 0
+            echo "::error::Set the RUSTLES_WEB_REPO_TOKEN secret with permission to create repository_dispatch events in rustlesWeb."
+            exit 1
           fi
-          echo "should_dispatch=true" >> "${GITHUB_OUTPUT}"
 
       - name: Trigger website publish workflow
-        if: steps.validate.outputs.should_dispatch == 'true'
         shell: bash
         env:
           RUSTLES_WEB_REPO_TOKEN: ${{ secrets.RUSTLES_WEB_REPO_TOKEN }}
         run: |
+          app_ref="${GITHUB_SHA}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.app_ref }}" ]; then
+            app_ref="${{ inputs.app_ref }}"
+          fi
+
           curl --fail-with-body \
             -X POST \
             -H "Accept: application/vnd.github+json" \
@@ -53,7 +59,7 @@ jobs:
               "event_type": "rustles_app_content_changed",
               "client_payload": {
                 "app_repo": "'"${RUSTLES_APP_REPOSITORY}"'",
-                "app_ref": "'"${GITHUB_SHA}"'",
+                "app_ref": "'"${app_ref}"'",
                 "content_paths": ["docs/devlog", "docs/changelog"]
               }
             }'

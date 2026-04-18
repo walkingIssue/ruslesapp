@@ -7,6 +7,7 @@ using rustles.core.Systems.ResolutionQue.Abstractions;
 using rustles.core.Events;
 
 using System.Runtime.CompilerServices;
+using System.Diagnostics.CodeAnalysis;
 
 namespace rustles.core.Systems.ResolutionQue
 {
@@ -33,8 +34,7 @@ namespace rustles.core.Systems.ResolutionQue
                     new DequedValue(new TileKey(value.clientCell.latti, value.clientCell.longi,
                     GDAL.Enums.RasterResolution.R_5M), 
                     value.clientCell,
-                    new RequestUserKey(value.RequestId,
-                    userId)));
+                    new RequestUserKey(userId, value.RequestId)));
             }
             _batched.DequeAllClient[userId] = 0;
         }
@@ -47,23 +47,37 @@ namespace rustles.core.Systems.ResolutionQue
             requestExists = _batched.HotCache.TryGetValue(request.ClientId, out var hotCacheValue);
             //handle existing request
             if(requestExists && hotCacheValue is not null && !hotCacheValue.prefilght)
+            {
                     isCacheUpdated = _batched.HotCache
                         .TryUpdate(request.ClientId,
                         new HotcacheValue(request.RequestId, request.Position),
                         hotCacheValue!);
+                if (isCacheUpdated) return SystemAction.Ok;
+                else return SystemAction.Failed | SystemAction.Superseded;
+            }
             //handle already preflight values
-            else if(hotCacheValue is not null && hotCacheValue.prefilght)
-                _batched.Dequed.TryAdd(new DequeKey(hotCacheValue.RequestId, hotCacheValue.clientCell), 
+            else if(requestExists && hotCacheValue is not null && hotCacheValue.prefilght)
+            {
+                //update cache with the new request value
+                isCacheUpdated = _batched.HotCache.TryUpdate(request.ClientId,
+                        new HotcacheValue(request.RequestId, request.Position),
+                        hotCacheValue);
+
+                //deque old request if cache update is successful
+                if(isCacheUpdated) _batched.Dequed.TryAdd(new DequeKey(hotCacheValue.RequestId, hotCacheValue.clientCell), 
                 new DequedValue(
-                    TileKey.ResolveTile(request,
-                    GDAL.Enums.RasterResolution.R_5M),
-                hotCacheValue.clientCell, new RequestUserKey(hotCacheValue.RequestId, request.ClientId)));
+                    new TileKey(hotCacheValue.clientCell.latti, hotCacheValue.clientCell.longi, resolution),
+                hotCacheValue.clientCell, new RequestUserKey(request.ClientId, hotCacheValue.RequestId)));
+
+
+                if(isCacheUpdated) return SystemAction.Ok;
+            }
 
             //no recovery from this fail, assume this thread is stale and behind in execution order.
             //or duplicate request
             //if insertion to inFlight deque failed means this request already
             //has cancellation pending with the same exact request and clientpos.
-            if (!isCacheUpdated) return SystemAction.Failed | SystemAction.Superseded;
+            if (requestExists && !isCacheUpdated) return SystemAction.Failed | SystemAction.Miss;
             
             bool isInserted = _batched.HotCache.
                 TryAdd(request.ClientId,
@@ -74,28 +88,54 @@ namespace rustles.core.Systems.ResolutionQue
         }
     }
 
-    public struct TileKey
+    public struct TileKey : IEquatable<TileKey>
     {
+        public bool Equals(TileKey other)
+        {
+            return Resolution == other.Resolution
+                && RasterIdX == other.RasterIdX
+                && RasterIdY == other.RasterIdY;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is TileKey other && Equals(other);
+        }
+
+        public static bool operator ==(TileKey left, TileKey right) => left.Equals(right);
+
+        public static bool operator !=(TileKey left, TileKey right) => !left.Equals(right);
+
         private int _hashCode = 0;
         public TileKey(int clientLatti, int clientLongi, GDAL.Enums.RasterResolution resolution)
         {
-            this._hashCode = HashCode.Combine(Resolution,  clientLatti, clientLongi);
-            this._rasterIdX = clientLatti;
-            this._rasterIdY = clientLongi;
+            this._rasterIdX = clientLongi / TILE_SIZE;
+            this._rasterIdY = clientLatti / TILE_SIZE;
             this.Resolution = resolution;
+            this._hashCode = HashCode.Combine(resolution, RasterIdX, RasterIdY);
         }
 
         public TileKey()
         {
+            this.GetHashCode();
         }
-        
+
+        //copy constructor to preserve hashcode for dequeued values referencing the same tilekey
+        public TileKey(TileKey other)
+        {
+            this._rasterIdX = other.RasterIdX;
+            this._rasterIdY = other.RasterIdY;
+            this.Resolution = other.Resolution;
+            this._hashCode = other.GetHashCode();
+        }
+
         public static TileKey ResolveTile(BatchRequest request, GDAL.Enums.RasterResolution resolution)
         {
             return new TileKey
             {
                 Resolution = resolution,
-                RasterIdX = request.Position.latti,
-                RasterIdY = request.Position.longi
+                RasterIdX = request.Position.longi,
+                RasterIdY = request.Position.latti
             };
         }
         const Int16 TILE_SIZE = 256;

@@ -72,11 +72,35 @@ namespace rustles.core.Systems.ResolutionQue
             int hotCacheHandledCount = 0;
 
             //localized snapshot of the hotcache
-            var currentHotCacheCopy = _hotCache.ToArray();
 
             if (token.IsCancellationRequested)
                 return result;
 
+            var markedForKill = _deQued.ToArray();
+
+            for(int i= 0; i <markedForKill.Length; i++)
+            {
+                if (token.IsCancellationRequested)
+                    return result;
+
+                RemovePreflightValue(
+                    markedForKill[i].Value.RequestUserKey,
+                    markedForKill[i].Value.Tile,
+                    ref result,
+                    markedForKill[i].Value.TileLocalizedId,
+                    markedForKill[i].Key.Cell);
+
+                _deQued.TryRemove(markedForKill[i].Key, out var _);
+                
+            }
+
+
+            if(token.IsCancellationRequested)
+                return result;
+
+            var currentHotCacheCopy = _hotCache.ToArray();
+
+            var currentDequeAllCopy = _dequeAllClient.ToDictionary();
             foreach(var kvp in currentHotCacheCopy)
             {
                 if (token.IsCancellationRequested)
@@ -84,11 +108,12 @@ namespace rustles.core.Systems.ResolutionQue
 
                 hotCacheHandledCount++;
                 //safety for multithreading wierdness
-                if(_dequeAllClient.ContainsKey(kvp.Key))
+                if(currentDequeAllCopy.ContainsKey(kvp.Key))
                 {
+                    //dequeue means nothing within this server compute frame
+                    //even if the request just came in, the user trying to reconnect to frequently
                     if(dequeAll && _hotCache.TryRemove(kvp.Key, out var _))
                     {
-                        poppedDequeAll.Add(kvp.Key);
                         result.DequedRequestsCount++;
                         continue;
                     }
@@ -96,65 +121,51 @@ namespace rustles.core.Systems.ResolutionQue
                 //Inflight not yet in compute
                 var hotcacheValue = kvp.Value;
 
+                //skip already qued or duplication
                 if (hotcacheValue.prefilght)
-                {
-                    RemovePreflightValue(kvp.Key, hotcacheValue, ref result);
                     continue;
-                }
 
-                var dequeKey = new DequeKey(kvp.Value.RequestId, kvp.Value.clientCell);
-                if (_deQued.TryGetValue(dequeKey, out var dequed)
-                    && _computeIds.TryGetValue(dequed.Tile, out var computeIds))
-                {
-                    if (computeIds.TryGetValue(dequed.TileLocalizedId, out var cellRequests))
-                    {
-                        cellRequests.RequestIds.Remove(HashCode.Combine(dequed.RequestUserKey.RequestId, dequed.RequestUserKey.UserId));
-                        result.DequeuedInflightCount++;
-                    }
-                    continue;
-                }
-                
+                //mark the hotcache value as preflight, communicate to the batcher this value will be computed.
                 var preflightedValue = hotcacheValue with { prefilght = true };
 
-                // move on if we cannot mark the current value as preflight, means a newer request won the race.
+                //move on if we cannot mark the current value as preflight, means a newer request won the race.
+                //hopefully stabilizes by next tiling run.
                 if (!_hotCache.TryUpdate(kvp.Key, preflightedValue, hotcacheValue))
                     continue;
                 
-                //user disconnected
-                if (_dequeAllClient.ContainsKey(kvp.Key))
-                {
-                    result.DequeuedInflightCount++;
-                    continue;
-                }
-
                 var requestTile = new TileKey(kvp.Value.clientCell.latti,
                     kvp.Value.clientCell.longi,
                     GDAL.Enums.RasterResolution.R_5M);
                 var cell = new RequestCell(kvp.Value.clientCell, requestTile);
 
-                if(!_computeIds.TryGetValue(requestTile, out var computeCells))
+                //Create a new Tile entry in the compute dictionary, add the cell to it, and add the user request to the cell.
+                if (!_computeIds.TryGetValue(requestTile, out var computeCells))
                 {
                     var tileDict = new SortedDictionary<int, RequestCell>();
                     var clientRequest = new RequestUserKey(kvp.Key, kvp.Value.RequestId);
 
-                    cell.RequestIds.Add(HashCode.Combine(kvp.Key, kvp.Value.RequestId), clientRequest);
-                    tileDict.Add(cell.GetHashCode(), cell);
+                    cell.RequestIds.Add(kvp.Key, clientRequest);
+                    tileDict.Add(cell.TileLocalizedId, cell);
                     _computeIds.TryAdd(requestTile, tileDict);
                     result.CellCount++;
                     result.UserCount++;
                     result.ReadyTilesCount++;
                     continue;
                 }
+                // The cell was removed at some point, create a computeCell holding the compute points
+                // add the cell with the user request to the compute cell, add the compute cell to the compute dictionary
                 if (computeCells == null)
                 {
                     var tileDict = _computeIds[requestTile] = new();
-                    tileDict.Add(cell.GetHashCode(), cell);
+                    tileDict.Add(cell.TileLocalizedId, cell);
                     result.CellCount++;
                 }
-                if(!computeCells!.TryAdd(cell.GetHashCode(), cell))
+                //compute cell exists, add the user request to the cell if the cell exists,
+                //otherwise create the cell with the user request and add it to the compute cell
+                if (!computeCells!.TryAdd(cell.TileLocalizedId, cell))
                 {
                     var userRequest = new RequestUserKey(kvp.Key, kvp.Value.RequestId);
-                    computeCells![cell.GetHashCode()].RequestIds.Add(userRequest.GetHashCode(), userRequest);
+                    computeCells![cell.TileLocalizedId].RequestIds.Add(userRequest.UserId, userRequest);
                     result.UserCount++;
                     result.RequestCount++;
                     continue;
@@ -163,33 +174,33 @@ namespace rustles.core.Systems.ResolutionQue
                 result.CellCount++;
                 result.UserCount++;
             }
+
             return result;
         }
 
-        private void RemovePreflightValue(Guid userId, HotcacheValue hotcacheValue, ref TilingResult result)
+        private void RemovePreflightValue(RequestUserKey userRequest, TileKey tile, ref TilingResult result, int requestCellId, ClientCell cell)
         {
-            var requestTile = new TileKey(
-                hotcacheValue.clientCell.latti,
-                hotcacheValue.clientCell.longi,
-                GDAL.Enums.RasterResolution.R_5M);
 
-            if (_computeIds.TryGetValue(requestTile, out var computeCells))
+            if (_computeIds.TryGetValue(tile, out var computeCells))
             {
-                var requestCellId = hotcacheValue.clientCell.GetHashCode();
                 if (computeCells.TryGetValue(requestCellId, out var cellRequests))
                 {
-                    cellRequests.RequestIds.Remove(HashCode.Combine(userId, hotcacheValue.RequestId));
+                    cellRequests.RequestIds.Remove(userRequest.UserId);
                     if (cellRequests.RequestIds.Count == 0)
                         computeCells.Remove(requestCellId);
 
                     if (computeCells.Count == 0)
-                        _computeIds.TryRemove(requestTile, out var _);
+                        _computeIds.TryRemove(tile, out var _);
 
                     result.DequeuedInflightCount++;
+
+                    _hotCache.TryRemove(new KeyValuePair<Guid, HotcacheValue>(
+                    userRequest.UserId,
+                    new HotcacheValue(userRequest.RequestId,
+                    cell,
+                    true)));
                 }
             }
-
-            _hotCache.TryRemove(userId, out var _);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)

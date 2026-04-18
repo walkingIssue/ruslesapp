@@ -58,7 +58,7 @@ namespace rustles.core.Systems.GDAL.Abstractions
             int[] buffer = new int[256 * 256];
             _dataset
                 .GetRasterBand(1)
-                .ReadRaster(tileKey.RasterIdY * 256, tileKey.RasterIdX * 256, 256, 256, buffer, 256, 256, 0, 0);
+                .ReadRaster(tileKey.RasterIdX * 256, tileKey.RasterIdY * 256, 256, 256, buffer, 256, 256, 0, 0);
 
             if(result.Length < 1)
                 throw new ArgumentException("Result too short.", nameof(result));
