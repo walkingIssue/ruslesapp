@@ -1,0 +1,232 @@
+@page "/debug-chat"
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager Navigation
+@inject HttpClient Http
+@implements IAsyncDisposable
+
+<PageTitle>Debug chat</PageTitle>
+
+<h1>Municipality chat debug</h1>
+
+<p>
+    This page intentionally creates a fresh user id per tab so you can open multiple windows
+    and test separate chat connections without browser storage joining them together.
+</p>
+
+<div class="debug-chat-grid">
+    <section class="debug-card">
+        <h2>Position</h2>
+        <label>
+            Latitude
+            <InputNumber @bind-Value="latitude" class="form-control" />
+        </label>
+        <label>
+            Longitude
+            <InputNumber @bind-Value="longitude" class="form-control" />
+        </label>
+        <button class="btn btn-primary mt-3" @onclick="ResolvePositionAsync" disabled="@(!isConnected || isResolving)">
+            @(isResolving ? "Resolving..." : "Connect to municipality")
+        </button>
+        <p class="mt-3">
+            <strong>Status:</strong> @status
+        </p>
+        <p>
+            <strong>User:</strong> @userId
+        </p>
+        <p>
+            <strong>Room:</strong> @roomLabel
+        </p>
+    </section>
+
+    <section class="debug-card">
+        <h2>Chat</h2>
+        <div class="message-list">
+            @if (messages.Count == 0)
+            {
+                <p class="text-muted">No messages in this municipality yet.</p>
+            }
+            else
+            {
+                @foreach (var message in messages)
+                {
+                    <article class="message">
+                        <small>@message.SentAt.ToLocalTime().ToString("HH:mm:ss") - @message.UserId.ToString("N")[..8]</small>
+                        <p>@message.Message</p>
+                    </article>
+                }
+            }
+        </div>
+        <div class="input-group mt-3">
+            <InputText @bind-Value="draftMessage" class="form-control" placeholder="Say something local..." />
+            <button class="btn btn-success" @onclick="SendMessageAsync" disabled="@(!canSendMessage)">Send</button>
+        </div>
+    </section>
+</div>
+
+<style>
+    .debug-chat-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: minmax(16rem, 24rem) minmax(18rem, 1fr);
+    }
+
+    .debug-card {
+        border: 1px solid #d8d8d8;
+        border-radius: 0.75rem;
+        padding: 1rem;
+        background: #fff;
+    }
+
+    .debug-card label {
+        display: block;
+        margin-top: 0.75rem;
+    }
+
+    .message-list {
+        min-height: 16rem;
+        max-height: 28rem;
+        overflow-y: auto;
+    }
+
+    .message {
+        border-bottom: 1px solid #ededed;
+        padding: 0.5rem 0;
+    }
+
+    .message p {
+        margin: 0;
+    }
+
+    @@media (max-width: 48rem) {
+        .debug-chat-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+@code {
+    private readonly Guid userId = Guid.NewGuid();
+    private readonly List<ChatMessageDto> messages = [];
+    private HubConnection? hubConnection;
+    private double latitude = 59.3293;
+    private double longitude = 18.0686;
+    private string status = "Starting SignalR connection...";
+    private string draftMessage = string.Empty;
+    private bool isResolving;
+    private MunicipalityAssignment? currentRoom;
+
+    private bool isConnected => hubConnection?.State == HubConnectionState.Connected;
+    private bool canSendMessage => isConnected && currentRoom is not null && !string.IsNullOrWhiteSpace(draftMessage);
+    private string roomLabel => currentRoom is null
+        ? "No municipality resolved yet"
+        : $"{currentRoom.MunicipalityName} ({currentRoom.MunicipalityId})";
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/hubs/munip-chat"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hubConnection.Reconnecting += error =>
+        {
+            status = $"SignalR reconnecting: {error?.Message ?? "connection interrupted"}";
+            return InvokeAsync(StateHasChanged);
+        };
+
+        hubConnection.Reconnected += _ =>
+        {
+            status = "SignalR reconnected.";
+            return InvokeAsync(StateHasChanged);
+        };
+
+        hubConnection.Closed += error =>
+        {
+            status = $"SignalR closed: {error?.Message ?? "connection stopped"}";
+            return InvokeAsync(StateHasChanged);
+        };
+
+        hubConnection.On<MunicipalityAssignment>("PositionResolved", assignment =>
+        {
+            currentRoom = assignment;
+            status = $"Connected to {assignment.MunicipalityName}.";
+            InvokeAsync(StateHasChanged);
+        });
+
+        hubConnection.On<ChatMessageDto[]>("ChatHistory", history =>
+        {
+            messages.Clear();
+            messages.AddRange(history);
+            InvokeAsync(StateHasChanged);
+        });
+
+        hubConnection.On<ChatMessageDto>("MessageReceived", message =>
+        {
+            messages.Add(message);
+            InvokeAsync(StateHasChanged);
+        });
+
+        try
+        {
+            await hubConnection.StartAsync();
+            await hubConnection.InvokeAsync("Register", userId);
+
+            status = "SignalR connected. Enter coordinates and resolve a room.";
+        }
+        catch (Exception exception)
+        {
+            status = $"SignalR failed: {exception.Message}";
+        }
+    }
+
+    private async Task ResolvePositionAsync()
+    {
+        if (hubConnection is null)
+            return;
+
+        isResolving = true;
+        status = "Queued position resolution...";
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync(
+                "/api/resolve-position",
+                new PositionResolveRequest(userId, latitude, longitude));
+
+            status = response.IsSuccessStatusCode
+                ? "Position accepted. Waiting for raster resolution..."
+                : $"Position rejected: {(int)response.StatusCode} {response.ReasonPhrase}";
+        }
+        finally
+        {
+            isResolving = false;
+        }
+    }
+
+    private async Task SendMessageAsync()
+    {
+        if (hubConnection is null || string.IsNullOrWhiteSpace(draftMessage))
+            return;
+
+        var message = draftMessage;
+        draftMessage = string.Empty;
+        await hubConnection.InvokeAsync("SendMessage", userId, message);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+            await hubConnection.DisposeAsync();
+    }
+
+    private sealed record PositionResolveRequest(Guid UserId, double Latitude, double Longitude);
+
+    private sealed record MunicipalityAssignment(Guid UserId, int MunicipalityId, string MunicipalityName);
+
+    private sealed record ChatMessageDto(
+        Guid MessageId,
+        Guid UserId,
+        int MunicipalityId,
+        string Message,
+        DateTimeOffset SentAt);
+}

@@ -55,7 +55,7 @@ namespace rustles.core.Systems.ResolutionQue.Abstractions
                 }
                 int[] workResult = new int[workSpan.Length];
                 _geoRasterAccess.ResolvePosition(workItem.TileKey, workSpan, workResult);
-                for(int i = 0; i < tileWork.Length - 1; i++)
+                for(int i = 0; i < tileWork.Length; i++)
                 {
                     var tileResult = new TileWorkResult(workResult[i], new SortedList<Guid, RequestUserKey>());
                     //order and add the request userkeys/requestids to the cell result

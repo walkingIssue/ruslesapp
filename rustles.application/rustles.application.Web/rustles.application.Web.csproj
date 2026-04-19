@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\rustles.application.Shared\rustles.application.Shared.csproj" />
+    <ProjectReference Include="..\..\rustles.core\rustles.core.csproj" />
   </ItemGroup>
 
 </Project>

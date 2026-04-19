@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Hosting;
-using Microsoft.Graph.Drives.Item.Items.Item.Workbook.Functions.IntRate;
 
 using rustles.core.Entities;
 using rustles.core.Events;
@@ -207,34 +206,37 @@ namespace rustles.core.Systems.ResolutionQue
         {
             using var timer = new PeriodicTimer(new TimeSpan(tickInterval));
             while (await timer.WaitForNextTickAsync(stoppingToken))
-            if (!await _runSemaphore.WaitAsync(0, stoppingToken))
-                continue;
-            var started = DateTime.Now.Ticks;
-            var sw = Stopwatch.StartNew();
-            try
             {
-                var runResult = await Task.Run<TilingResult>(() => TileHotCacheValues(stoppingToken));
-                var mergedRest = new TilingResult()
-                {
-                    CellCount = this._mergedTilingObject.CellCount + runResult.CellCount,
-                    DequedRequestsCount = this._mergedTilingObject.DequedRequestsCount + runResult.DequedRequestsCount,
-                    ReadyTilesCount = this._mergedTilingObject.ReadyTilesCount + runResult.ReadyTilesCount,
-                    RequestCount = this._mergedTilingObject.RequestCount + runResult.RequestCount,
-                    UserCount = this._mergedTilingObject.UserCount + runResult.UserCount,
-                    DequeuedInflightCount = this._mergedTilingObject.DequeuedInflightCount + runResult.DequeuedInflightCount,
-                    Result = BatcherActions.Ok
-                };
-                Interlocked.Exchange(ref _mergedTilingObject, runResult);
+                if (!await _runSemaphore.WaitAsync(0, stoppingToken))
+                    continue;
 
-                if (this._mergedTilingObject.UserCount > 1_000)
-                    this.SignalEvent.Invoke(this, new GDAL.SignalBatchRunEventArgs() { BatchCollectionNumber = ++this._batchNumber });
-            }
-            finally
-            {
-                sw.Stop();
-                Interlocked.Exchange(ref _lastRuntime, sw.Elapsed.Ticks);
-                Interlocked.Exchange(ref _lastTick, started);
-                _runSemaphore.Release();
+                var started = DateTime.Now.Ticks;
+                var sw = Stopwatch.StartNew();
+                try
+                {
+                    var runResult = await Task.Run<TilingResult>(() => TileHotCacheValues(stoppingToken));
+                    var mergedRest = new TilingResult()
+                    {
+                        CellCount = this._mergedTilingObject.CellCount + runResult.CellCount,
+                        DequedRequestsCount = this._mergedTilingObject.DequedRequestsCount + runResult.DequedRequestsCount,
+                        ReadyTilesCount = this._mergedTilingObject.ReadyTilesCount + runResult.ReadyTilesCount,
+                        RequestCount = this._mergedTilingObject.RequestCount + runResult.RequestCount,
+                        UserCount = this._mergedTilingObject.UserCount + runResult.UserCount,
+                        DequeuedInflightCount = this._mergedTilingObject.DequeuedInflightCount + runResult.DequeuedInflightCount,
+                        Result = BatcherActions.Ok
+                    };
+                    _mergedTilingObject = mergedRest;
+
+                    if (this._mergedTilingObject.UserCount > 1_000)
+                        this.SignalEvent?.Invoke(this, new GDAL.SignalBatchRunEventArgs() { BatchCollectionNumber = ++this._batchNumber });
+                }
+                finally
+                {
+                    sw.Stop();
+                    Interlocked.Exchange(ref _lastRuntime, sw.Elapsed.Ticks);
+                    Interlocked.Exchange(ref _lastTick, started);
+                    _runSemaphore.Release();
+                }
             }
         }
     }

@@ -2,10 +2,7 @@ using rustles.core.Entities.DTOs;
 using rustles.core.Entities;
 using rustles.core.Systems.GDAL.Abstractions;
 using rustles.core.Shared;
-using System.Runtime.InteropServices.Marshalling;
-using Microsoft.Kiota.Abstractions.Extensions;
 using rustles.core.Systems.ResolutionQue.Abstractions;
-using Microsoft.Graph.Models;
 
 namespace rustles.core.Systems.ResolutionQue
 {

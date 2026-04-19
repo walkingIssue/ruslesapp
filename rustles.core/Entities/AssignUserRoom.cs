@@ -1,5 +1,3 @@
-using Azure.Core;
-
 namespace rustles.core.Entities
 {
     public record AssignUserRoom(

@@ -2,7 +2,6 @@ using Microsoft.Extensions.Hosting;
 
 using rustles.core.Events;
 
-using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Threading.Channels;
 
@@ -109,8 +108,9 @@ namespace rustles.core.Systems.ResolutionQue.Abstractions
                            new HotcacheValue(requestIds[k].RequestId, tileCellsTransformed[j].Cell,
                            true)));
                     }
-                    if(tileCellsTransformed.Length > 0) 
-                        geoRasterWorkList.Add(tileCellsTransformed[j].TileLocalizedId, requestIds.Except(dequedUserKeys).ToArray());
+                    var activeRequestIds = requestIds.Except(dequedUserKeys).ToArray();
+                    if(activeRequestIds.Length > 0) 
+                        geoRasterWorkList.Add(tileCellsTransformed[j].TileLocalizedId, activeRequestIds);
                 }
 
                 var finnshedWorkItem = new GeoRasterWorkItem(tileKeys[i].Key, geoRasterWorkList);

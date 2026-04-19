@@ -14,6 +14,8 @@
 **/obj/
 artifacts/
 TestResults/
+**/publish/
+**/.publish/
 
 # NuGet
 packages/
@@ -24,6 +26,27 @@ packages/
 *.log
 *.tmp
 *.cache
+*.trace
+*.dmp
+
+# Local databases and SQLite runtime files
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+rustles_platform/rustles_platform/Data/*
+!rustles_platform/rustles_platform/Data/.gitkeep
+
+# ASP.NET / Blazor local generated files
+*.Development.json.user
+*.runtimeconfig.dev.json
+*.staticwebassets.runtime.json
+*.staticwebassets.endpoints.json
+*.staticwebassets.build.json
+*.staticwebassets.pack.json
+*.staticwebassets.publish.json
 
 # Local workflow output
 .docs-closeout/

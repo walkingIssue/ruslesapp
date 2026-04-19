@@ -64,7 +64,10 @@ namespace rustles.core.Systems.GDAL
 
         public string[] GetMunipNaturalName(int Id)
         {
-            throw new NotImplementedException();
+            var municipality = GetMunicipality(Id);
+            return string.IsNullOrWhiteSpace(municipality.name)
+                ? [Id.ToString()]
+                : [municipality.name];
         }
     }
     public class MunipComparer : IComparer
@@ -81,7 +84,7 @@ namespace rustles.core.Systems.GDAL
             var cX = (x as Municipality);
             var cY = (y as Municipality);
 
-            return cX.munipCode ?? 0 - cY.munipCode ?? 0;
+            return (cX?.munipCode ?? 0).CompareTo(cY?.munipCode ?? 0);
         }
     }
 }
