@@ -1,30 +1,60 @@
 @page "/municipality/chat"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using Microsoft.AspNetCore.SignalR.Client
+@using System.Text
 @implements IAsyncDisposable
 @inject NavigationManager Navigation
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 
 <h3>Chat</h3>
+@foreach (var msg in userMessages)
+{
+    <p>@msg</p>
+}
 
-<p>@message</p>
 <p>@url</p>
-<button @onclick="SendMessage">Send Message</button>
+<textarea @bind="chatMessage" placeholder="Enter message to send"></textarea>
+<button @onclick="(e) => SendMessage(chatMessage)">Send Message</button>
+
+<form @onsubmit="FormSubmit" @onsubmit:preventDefault="true">
+    <label for="inputValue">Input Int to connect to a specific chat</label>
+    <input @bind-value="currentValue"/>
+    <button type="submit">Submit</button>
+</form>
 
 @code {
-    private string message = string.Empty;
+    private List<string> userMessages = [];
+    private List<string> message = [];
     private HubConnection? munipHub;
     private string url = string.Empty;
+    private int currentValue = 0;
+    private Guid client = Guid.NewGuid();
+    private string chatMessage = string.Empty;
 
     public record Position(double lat, double longi);
 
-    private async Task SendMessage()
+    private async Task FormSubmit()
+    {
+        if(munipHub is not null)
+        {
+            var task = munipHub.InvokeAsync("ConnectUser", currentValue);
+            message.Clear();
+            await InvokeAsync(StateHasChanged);
+            await task;
+        }
+    }
+
+    private async Task SendMessage(string msg)
     {
         if (munipHub is not null)
         {
             try
             {
-                await munipHub.InvokeAsync("HelloUser", "test_user");
+                var t = munipHub.InvokeAsync("MunipChat", msg);
+                userMessages.Add($"Sent: {msg}");
+                await InvokeAsync(StateHasChanged);
                 Console.WriteLine("Message sent to hub.");
+                await t;
             }
             catch (Exception ex)
             {
@@ -41,11 +71,27 @@
             .WithAutomaticReconnect()
             .Build();
 
-        munipHub.On<string>("ReceiveMessage", receivedMessage =>
+        munipHub.On<string, List<string>>("MunipConnect", async (recievedMessage, catchup) =>
         {
-            message = receivedMessage;
-            Console.WriteLine($"Received message: {receivedMessage}");
-            InvokeAsync(StateHasChanged);
+            userMessages.Clear();
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(500);
+            message.Add(recievedMessage);
+            foreach(var mess in catchup)
+            {
+                await Task.Delay(200);
+                userMessages.Add(mess);
+                await InvokeAsync(StateHasChanged);
+            }
+        });
+
+        munipHub.On<string, string>("MessageByUser", async (uid, otherMessage) =>
+        {
+            string user = uid;
+            if (uid.Length > 12)
+                user = new StringBuilder().Append(uid.Take(4).ToArray()).Append("..").Append(uid.Take(new Range(6, 13)).ToArray()).ToString();
+            userMessages.Add($"{user}: {otherMessage}");
+            await InvokeAsync(StateHasChanged);
         });
 
         try
@@ -57,6 +103,7 @@
         {
             Console.WriteLine($"Error connecting to hub: {ex.Message}");
         }
+
     }
 
     public async ValueTask DisposeAsync()
@@ -67,3 +114,7 @@
         }
     }
 }
+
+<style>
+
+</style>
