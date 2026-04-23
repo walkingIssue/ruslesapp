@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\rustles.contracts\rustles.contracts.csproj" />
     <ProjectReference Include="..\..\rustles.core\rustles.core.csproj" />
     <ProjectReference Include="..\rustles_platform.Client\rustles_platform.Client.csproj" />
     <ProjectReference Include="..\..\rustles.Infrastructure\rustles.Infrastructure.csproj" />

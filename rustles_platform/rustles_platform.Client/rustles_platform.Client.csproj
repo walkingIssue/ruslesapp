@@ -15,4 +15,8 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.6" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\rustles.contracts\rustles.contracts.csproj" />
+  </ItemGroup>
+
 </Project>

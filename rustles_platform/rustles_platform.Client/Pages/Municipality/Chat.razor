@@ -2,9 +2,13 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using Microsoft.AspNetCore.SignalR.Client
 @using System.Text
+@using rustles.contracts
 @implements IAsyncDisposable
 @inject NavigationManager Navigation
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+<link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
+
+
 
 <h3>Chat</h3>
 @foreach (var msg in userMessages)
@@ -22,6 +26,17 @@
     <button type="submit">Submit</button>
 </form>
 
+<div class="container">
+    <div class="row">
+        @if (chatError is not null)
+        {
+            <div class="col-6 --bs-danger">
+                <p class="bg-danger">We spazzed out for some reason, there's an error on the line</p>
+            </div>
+        }
+    </div>
+</div>
+
 @code {
     private List<string> userMessages = [];
     private List<string> message = [];
@@ -30,6 +45,8 @@
     private int currentValue = 0;
     private Guid client = Guid.NewGuid();
     private string chatMessage = string.Empty;
+    private MunipChatError? chatError = null;
+
 
     public record Position(double lat, double longi);
 
@@ -37,10 +54,16 @@
     {
         if(munipHub is not null)
         {
-            var task = munipHub.InvokeAsync("ConnectUser", currentValue);
-            message.Clear();
+            var task = munipHub.ConnectUser(new rustles.contracts.ConnectMunipRequest(currentValue));
+            userMessages.Clear();
             await InvokeAsync(StateHasChanged);
-            await task;
+            var result = await task;
+
+            if(result is not null)
+            {
+                await HandleMunipConnection(result);
+                chatError = null;
+            }
         }
     }
 
@@ -50,7 +73,7 @@
         {
             try
             {
-                var t = munipHub.InvokeAsync("MunipChat", msg);
+                var t = munipHub.MunipChat(msg);
                 userMessages.Add($"Sent: {msg}");
                 await InvokeAsync(StateHasChanged);
                 Console.WriteLine("Message sent to hub.");
@@ -63,6 +86,25 @@
         }
     }
 
+    private async Task HandleMunipConnection(ConnectMunipAck connectAck)
+    {
+        userMessages.Clear();
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(500);
+        message.Add(connectAck.Message);
+        foreach(var mess in connectAck.Catchup)
+        {
+            await Task.Delay(200);
+            userMessages.Add(userMessageBuilder(mess));
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string userMessageBuilder(MunipChatMessage mess)
+    {
+        return $"{mess.DisplayName}: {mess.Message}   :{mess.SentAt}";
+    }
+
     protected override async Task OnInitializedAsync()
     {
         url = Navigation.ToAbsoluteUri("/hubs/municipality").ToString();
@@ -71,27 +113,17 @@
             .WithAutomaticReconnect()
             .Build();
 
-        munipHub.On<string, List<string>>("MunipConnect", async (recievedMessage, catchup) =>
+        munipHub.On<MunipChatMessage>(nameof(IMunipClientMethods.MessageByUser), (munipMessage) =>
         {
-            userMessages.Clear();
-            await InvokeAsync(StateHasChanged);
-            await Task.Delay(500);
-            message.Add(recievedMessage);
-            foreach(var mess in catchup)
-            {
-                await Task.Delay(200);
-                userMessages.Add(mess);
-                await InvokeAsync(StateHasChanged);
-            }
+            string user = munipMessage.DisplayName;
+            userMessages.Add(userMessageBuilder(munipMessage));
+            InvokeAsync(StateHasChanged);
         });
 
-        munipHub.On<string, string>("MessageByUser", async (uid, otherMessage) =>
+        munipHub.On<MunipChatError>(nameof(IMunipClientMethods.ConnectionError), (error) =>
         {
-            string user = uid;
-            if (uid.Length > 12)
-                user = new StringBuilder().Append(uid.Take(4).ToArray()).Append("..").Append(uid.Take(new Range(6, 13)).ToArray()).ToString();
-            userMessages.Add($"{user}: {otherMessage}");
-            await InvokeAsync(StateHasChanged);
+            chatError = error;
+            InvokeAsync(StateHasChanged);
         });
 
         try
@@ -103,7 +135,6 @@
         {
             Console.WriteLine($"Error connecting to hub: {ex.Message}");
         }
-
     }
 
     public async ValueTask DisposeAsync()
