@@ -48,6 +48,16 @@ rustles_platform/rustles_platform/Data/*
 *.staticwebassets.pack.json
 *.staticwebassets.publish.json
 
+# Node / TypeScript
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+**/*.tsbuildinfo
+rustles_platform/rustles_platform.Client/wwwroot/js/*
+!rustles_platform/rustles_platform.Client/wwwroot/js/.gitkeep
+
 # Local workflow output
 .docs-closeout/
 docs-closeout-output/

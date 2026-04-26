@@ -2,10 +2,7 @@
 namespace rustles.contracts
 {
 
-    public sealed record MunipConnectionRequest(int MunicipalityId);
-
     public sealed record MunipChatMessage(
-        string SenderId,
         string DisplayName,
         string Message,
         DateTimeOffset SentAt);
@@ -17,8 +14,6 @@ namespace rustles.contracts
         );
 
     public sealed record MunipMessageRequest(string Message);
-
-    public sealed record ConnectMunipRequest(int MunipId);
 
     public sealed record MunipChatError(ConnectionFault Fault, ChatErrorMessage ErrorMessage);
     
@@ -45,7 +40,6 @@ namespace rustles.contracts
     /// </summary>
     public interface IMunipServerMethods
     {
-        Task<ConnectMunipAck?> ConnectUser(ConnectMunipRequest request);
         Task MunipUserMessage(string message);
     }
     

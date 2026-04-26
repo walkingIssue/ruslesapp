@@ -3,12 +3,15 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @using System.Text
 @using rustles.contracts
+@using rustles_platform.Client.Pages.Municipality.DTOs;
 @implements IAsyncDisposable
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject HttpClient requestClient
+@inject AntiforgeryStateProvider afState
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
 <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
-
-
 
 <h3>Chat</h3>
 @foreach (var msg in userMessages)
@@ -20,18 +23,12 @@
 <textarea @bind="chatMessage" placeholder="Enter message to send"></textarea>
 <button @onclick="(e) => SendMessage(chatMessage)">Send Message</button>
 
-<form @onsubmit="FormSubmit" @onsubmit:preventDefault="true">
-    <label for="inputValue">Input Int to connect to a specific chat</label>
-    <input @bind-value="currentValue"/>
-    <button type="submit">Submit</button>
-</form>
-
 <div class="container">
     <div class="row">
         @if (chatError is not null)
         {
             <div class="col-6 --bs-danger">
-                <p class="bg-danger">We spazzed out for some reason, there's an error on the line</p>
+                <p class="bg-danger">@chatErrorMessage</p>
             </div>
         }
     </div>
@@ -41,30 +38,24 @@
     private List<string> userMessages = [];
     private List<string> message = [];
     private HubConnection? munipHub;
+    private bool enqueOk = false;
     private string url = string.Empty;
     private int currentValue = 0;
     private Guid client = Guid.NewGuid();
     private string chatMessage = string.Empty;
     private MunipChatError? chatError = null;
+    private string chatErrorMessage ="We spazzed out for some reason, there's an error on the line";
+    private UserConsent? consent = null;
 
 
-    public record Position(double lat, double longi);
+    public record Position(double latti, double longi);
 
-    private async Task FormSubmit()
+    private Task<HttpResponseMessage> RequestEnque(Position position)
     {
-        if(munipHub is not null)
-        {
-            var task = munipHub.ConnectUser(new rustles.contracts.ConnectMunipRequest(currentValue));
-            userMessages.Clear();
-            await InvokeAsync(StateHasChanged);
-            var result = await task;
-
-            if(result is not null)
-            {
-                await HandleMunipConnection(result);
-                chatError = null;
-            }
-        }
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/ConnectMunip");
+        request.Headers.Add("RequestVerificationToken", afState.GetAntiforgeryToken()!.Value);
+        request.Content = JsonContent.Create(position);
+        return requestClient.SendAsync(request);
     }
 
     private async Task SendMessage(string msg)
@@ -105,35 +96,74 @@
         return $"{mess.DisplayName}: {mess.Message}   :{mess.SentAt}";
     }
 
-    protected override async Task OnInitializedAsync()
+    private void InitializeHub()
     {
         url = Navigation.ToAbsoluteUri("/hubs/municipality").ToString();
         munipHub = new HubConnectionBuilder()
             .WithUrl(Navigation.ToAbsoluteUri("/hubs/municipality"))
             .WithAutomaticReconnect()
             .Build();
-
-        munipHub.On<MunipChatMessage>(nameof(IMunipClientMethods.MessageByUser), (munipMessage) =>
-        {
-            string user = munipMessage.DisplayName;
-            userMessages.Add(userMessageBuilder(munipMessage));
-            InvokeAsync(StateHasChanged);
-        });
-
-        munipHub.On<MunipChatError>(nameof(IMunipClientMethods.ConnectionError), (error) =>
-        {
-            chatError = error;
-            InvokeAsync(StateHasChanged);
-        });
-
+    }
+    private async Task<UserConsent?> ConsentHandler(int intervalSeconds)
+    {
+        UserConsent? consent = null;
         try
         {
-            await munipHub.StartAsync();
-            Console.WriteLine("Connected to municipality hub.");
-        }
-        catch (Exception ex)
+            consent = await JS.InvokeAsync<UserConsent>("RustlesGeo.assertGeolocationCompliance", intervalSeconds); 
+
+        }catch(Exception e) when (e is JSException)
         {
-            Console.WriteLine($"Error connecting to hub: {ex.Message}");
+            return null;
+        }
+        return consent;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        HttpResponseMessage? message = null;
+        this.consent = await ConsentHandler(5);
+        if (this.consent is not null && consent.consented && consent.latti is not null && consent.longi is not null)
+        {
+            message = await RequestEnque(new Position(consent.latti.Value, consent.longi.Value));
+            if (message.IsSuccessStatusCode)
+                enqueOk = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        if(this.consent is null)
+        {
+            chatError = new(ConnectionFault.fail, ChatErrorMessage.clientDenied);
+            chatErrorMessage = "We cannot proceed without the Geolocation API consent, if you changed your mind, please reload the page";
+        }
+
+        if (enqueOk)
+        {
+            InitializeHub();
+            munipHub.On<MunipChatMessage>(nameof(IMunipClientMethods.MessageByUser), (munipMessage) =>
+            {
+                string user = munipMessage.DisplayName;
+                userMessages.Add(userMessageBuilder(munipMessage));
+                InvokeAsync(StateHasChanged);
+            });
+
+            munipHub.On<MunipChatError>(nameof(IMunipClientMethods.ConnectionError), (error) =>
+            {
+                chatError = error;
+                InvokeAsync(StateHasChanged);
+            });
+            munipHub.On<ConnectMunipAck>(nameof(IMunipClientMethods.MunipConnect), async (ack) =>
+            {
+                await HandleMunipConnection(ack);
+            });
+
+            try
+            {
+                await munipHub.StartAsync();
+                Console.WriteLine("Connected to municipality hub.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error connecting to hub: {ex.Message}");
+            }
         }
     }
 

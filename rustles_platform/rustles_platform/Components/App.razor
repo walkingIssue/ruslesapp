@@ -16,16 +16,30 @@
 
 <body>
     <Routes @rendermode="PageRenderMode" />
+    <script src="@Assets["js/geolocation.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="@Assets["Components/Account/Shared/PasskeySubmit.razor.js"]" type="module"></script>
 </body>
-
 </html>
 
 @code {
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 
-    private IComponentRenderMode? PageRenderMode =>
-        HttpContext.AcceptsInteractiveRouting() ? InteractiveWebAssembly : null;
+    private static readonly IComponentRenderMode WasmOnly =
+    new InteractiveWebAssemblyRenderMode(prerender: false);
+
+    private IComponentRenderMode? PageRenderMode => evalRenderMode();
+
+
+    private IComponentRenderMode evalRenderMode()
+    {
+        if (!HttpContext.AcceptsInteractiveRouting())
+            return null;
+
+        if (HttpContext.Request.Path.StartsWithSegments("/municipality/chat"))
+            return WasmOnly;
+
+        return InteractiveWebAssembly;
+    }
 }
