@@ -19,9 +19,9 @@ These are the operating assumptions for now:
 
 - do not persist user location history unless there is a strong product reason
 - do not persist location data at all in the MVP flow
-- do not persist sent messages in the MVP flow
+- persist municipality chat messages and emoji reaction events for the chat experience
 - keep logging minimal
-- do not use cookies in MVP
+- use only strictly necessary authentication cookies
 - avoid analytics and third-party trackers at launch
 - keep the first release's data model as small as possible
 
@@ -49,10 +49,13 @@ That signal comes from [UsersDataContext.cs](../rustles.Infrastructure/UserDataC
 | Age self-attestation | Implied by MVP registration acknowledgement step | Yes | Current MVP direction assumes the 16+ registration gate result must be recorded if it is required before account creation. |
 | Privacy notice acknowledgement | Implied by MVP registration acknowledgement step | Yes | Current MVP direction assumes acceptance must be recorded if it gates account creation. |
 | External auth identifiers | Yes, `OAuthId`, `OIDCId` on `User` | Probably | Only store what is needed for sign-in and account linking. |
-| Authentication/session cookie | Previously discussed, not part of current MVP privacy direction | No | Current MVP direction is to avoid cookies entirely. |
+| Authentication/session cookie | Yes, ASP.NET Core Identity auth flow | Yes | Strictly necessary for sign-in and account protection. No advertising or analytics cookies in the current build. |
 | User block relationships | Implied by MVP blocking feature | Yes | A block list is a user-to-user safety relationship and should be described truthfully in privacy-facing docs if implemented. |
 | Room membership | Yes, implied by `User` and `Room` models | Probably | Needed if rooms are a core feature. |
-| Messages | Yes, implied by `Message` and `Conversation` models | No for MVP persistence | Messages may exist in runtime flow, but current MVP direction is not to persist sent messages. |
+| Messages | Yes, `MunicipalityChatMessage` | Yes | Stored for chat catchup, reply links, pinned-message scoring, account export, and account deletion. |
+| Emoji reactions | Yes, `MunicipalityMessageReaction` | Yes | Stored as one reaction event per user action, then aggregated for display. |
+| Municipality moderation bans | Yes, `MunicipalityUserBan` | Yes | Stored when a trusted tester bans a user from a municipality chat. Scope bans tightly to the municipality and avoid device fingerprinting. |
+| Message deletion metadata | Yes, `MunicipalityChatMessage` soft-delete fields | Yes | Stores deletion timestamp, moderator ID, and optional reason while excluding deleted messages from chat catchup, reactions, and pinned-message scoring. |
 | Consents | Yes, implied by `Consent` model | Probably | Useful if consent-driven features are introduced. |
 | User location history | Yes, implied by `Position` model | No | Current MVP direction is not to persist location data. |
 | Derived geolocation result | Not clearly modeled yet | Maybe | Municipality resolution may exist at runtime without persistence. |
@@ -67,15 +70,14 @@ That signal comes from [UsersDataContext.cs](../rustles.Infrastructure/UserDataC
 - third-party analytics at launch
 - advertising identifiers
 - device fingerprinting
-- persisted message history in MVP
 - detailed debug logs in production
 
 ## Questions we still need to answer
 
 - Do we need to persist any derived municipality result, or can that stay runtime-only for MVP?
-- When do messages need to become durable enough to justify persistence?
 - What is the minimum age-gate and privacy-notice acknowledgement metadata we need to persist?
-- Do we need soft-delete, hard-delete, or both?
+- Do moderation bans need expiry defaults, appeal/review tooling, or an audit export before public launch?
+- Should message deletion eventually hard-delete rows after a retention period, or remain soft-delete only for moderation/accountability?
 - Will any vendor outside our own hosting stack process user data?
 - Do we need account deletion and data export in the first public release?
 
@@ -97,8 +99,10 @@ Use this table as a running log.
 | Date | Change | Data impact | Needs privacy-policy update? | Notes |
 | --- | --- | --- | --- | --- |
 | 2026-04-05 | Initial inventory document created | No product-data change yet | No | Baseline engineering/privacy tracking document. |
-| 2026-04-12 | MVP privacy direction tightened | Yes | Yes | Current MVP direction stores email, username, and password information, does not persist location data or sent messages, and does not use cookies. |
+| 2026-04-12 | MVP privacy direction tightened | Yes | Yes | Superseded by the 2026-06-05 message persistence and authentication-cookie update. |
 | 2026-04-12 | Registration acknowledgement persistence assumed | Yes | Yes | Current MVP direction assumes age self-attestation and privacy-notice acceptance are recorded when account creation is completed. |
+| 2026-06-05 | Persisted municipality messages, emoji reactions, pinned-message scoring, replies, auth-cookie notice, data export/delete support | Yes | Yes | Privacy and terms pages were added, but public legal text still requires human review before production publication. |
+| 2026-06-05 | Added trusted-tester message deletion and municipality-scoped author bans | Yes | Yes | Moderation introduces ban records and message deletion metadata. Public and internal docs must describe this without implying device fingerprinting or global bans. |
 
 ## Working rule
 

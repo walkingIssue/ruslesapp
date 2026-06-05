@@ -16,6 +16,25 @@
 
 <body>
     <Routes @rendermode="PageRenderMode" />
+    <div id="cookie-notice" class="cookie-notice" hidden>
+        <p>
+            Rustles uses only strictly necessary authentication cookies for signing in, staying signed in,
+            and protecting account actions.
+        </p>
+        <button type="button" onclick="RustlesCookieNotice.accept()">Accept</button>
+    </div>
+    <script>
+        window.RustlesCookieNotice = {
+            accept: () => {
+                localStorage.setItem("rustles-cookie-notice-accepted", "true");
+                document.getElementById("cookie-notice")?.setAttribute("hidden", "");
+            }
+        };
+
+        if (localStorage.getItem("rustles-cookie-notice-accepted") !== "true") {
+            document.getElementById("cookie-notice")?.removeAttribute("hidden");
+        }
+    </script>
     <script src="@Assets["js/geolocation.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="@Assets["Components/Account/Shared/PasskeySubmit.razor.js"]" type="module"></script>
@@ -29,10 +48,10 @@
     private static readonly IComponentRenderMode WasmOnly =
     new InteractiveWebAssemblyRenderMode(prerender: false);
 
-    private IComponentRenderMode? PageRenderMode => evalRenderMode();
+    private IComponentRenderMode? PageRenderMode => EvalRenderMode();
 
 
-    private IComponentRenderMode evalRenderMode()
+    private IComponentRenderMode? EvalRenderMode()
     {
         if (!HttpContext.AcceptsInteractiveRouting())
             return null;

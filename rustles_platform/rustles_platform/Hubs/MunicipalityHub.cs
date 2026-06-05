@@ -1,27 +1,29 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using rustles.contracts;
-using rustles.core.Entities;
-using rustles.core.Systems.ResolutionQue.Abstractions;
+using rustles_platform.Services;
 
 using System.Security.Claims;
-using System.Threading.Channels;
 
+namespace rustles_platform.Hubs;
 
 [Authorize]
 public class MunicipalityHub : Microsoft.AspNetCore.SignalR.Hub<IMunipClientMethods>, IMunipServerMethods
 {
     public MunicipalityHub(
         UserHubManager manager, 
-        UserManager<rustles.Infrastructure.Model.User> userManager)
+        UserManager<rustles.Infrastructure.Model.User> userManager,
+        IMunicipalityChatStore chatStore)
     {
         _manager = manager;
         _userManager = userManager;
+        _chatStore = chatStore;
     }
 
     
     private readonly UserHubManager _manager;
     private readonly UserManager<rustles.Infrastructure.Model.User> _userManager;
+    private readonly IMunicipalityChatStore _chatStore;
 
 
     private readonly MunipChatError FailedRequest = new(rustles.contracts.ConnectionFault.fail, ChatErrorMessage.error);
@@ -60,46 +62,124 @@ public class MunicipalityHub : Microsoft.AspNetCore.SignalR.Hub<IMunipClientMeth
         //single connection per device.
         lock (userEntry.LockObject)
         {
-            userEntry.SingalRConnectionId = Context.ConnectionId;
+            userEntry.SignalRConnectionId = Context.ConnectionId;
         }
 
         await base.OnConnectedAsync();
     }
 
-    public Task MunipUserMessage(string message)
+    public async Task MunipUserMessage(MunipMessageRequest request)
     {
 
         if (Context.User is null)
-            return Task.CompletedTask;
+            return;
 
         var connected = Context.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         if (connected == null)
-            return Task.CompletedTask;
+            return;
 
         if (Context.UserIdentifier == null 
             || !_manager.CurrentUserLedger.TryGetValue(connected, out var value) 
-            || value is null)
+            || value is null
+            || value.MunipId is null)
         {
-            return Clients.Caller.ConnectionError(FailedRequest);
+            await Clients.Caller.ConnectionError(FailedRequest);
+            return;
         }
 
-        var userMessage = new MunipChatMessage(
-            value.ParmanentUserName!, 
-            message,
-            DateTimeOffset.UtcNow);
-
-        if(value is not null && value.MunipId is not null)
+        try
         {
-            var t = Clients.OthersInGroup(value.MunipId).MessageByUser(userMessage);
-            if (_manager.MunipChats.TryGetValue(value.MunipId!, out var que))
+            if (await _chatStore.IsUserBannedAsync(value.MunipId, connected, Context.ConnectionAborted))
             {
-                if (que.Count > 20)
-                    que.TryDequeue(out _);
-                que.Enqueue(userMessage);
+                await Clients.Caller.ConnectionError(new MunipChatError(ConnectionFault.fail, ChatErrorMessage.clientDenied));
+                return;
             }
-            return t;
+
+            var displayName = await ResolveDisplayNameAsync(connected, value);
+            var userMessage = await _chatStore.AddMessageAsync(
+                value.MunipId,
+                connected,
+                displayName,
+                request.Message,
+                request.ReplyToMessageId,
+                Context.ConnectionAborted);
+
+            await Clients.Group(value.MunipId).MessageByUser(userMessage);
         }
-        return Task.CompletedTask;
+        catch (ArgumentOutOfRangeException)
+        {
+            await Clients.Caller.ConnectionError(new MunipChatError(ConnectionFault.fail, ChatErrorMessage.length));
+        }
+        catch (InvalidOperationException)
+        {
+            await Clients.Caller.ConnectionError(new MunipChatError(ConnectionFault.OutofOrder, ChatErrorMessage.error));
+        }
+    }
+
+    private async Task<string> ResolveDisplayNameAsync(
+        string userId,
+        UserHubManager.UserConnectionLedgerEntry ledger)
+    {
+        if (!string.IsNullOrWhiteSpace(ledger.PermanentUserName))
+            return ledger.PermanentUserName.Trim();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null)
+            throw new InvalidOperationException("User no longer exists.");
+
+        var displayName = UserDisplayName.Resolve(user);
+        ledger.PermanentUserName = displayName;
+        return displayName;
+    }
+
+    public async Task ReactToMessage(MunipReactionRequest request)
+    {
+        if (Context.User is null)
+            return;
+
+        var connected = Context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (connected == null)
+            return;
+
+        if (Context.UserIdentifier == null
+            || !_manager.CurrentUserLedger.TryGetValue(connected, out var value)
+            || value is null
+            || value.MunipId is null)
+        {
+            await Clients.Caller.ConnectionError(FailedRequest);
+            return;
+        }
+
+        try
+        {
+            if (await _chatStore.IsUserBannedAsync(value.MunipId, connected, Context.ConnectionAborted))
+            {
+                await Clients.Caller.ConnectionError(new MunipChatError(ConnectionFault.fail, ChatErrorMessage.clientDenied));
+                return;
+            }
+
+            var update = await _chatStore.AddReactionAsync(
+                value.MunipId,
+                connected,
+                request.MessageId,
+                request.Emoji,
+                Context.ConnectionAborted);
+
+            if (update is null)
+            {
+                await Clients.Caller.ConnectionError(new MunipChatError(ConnectionFault.DoesntExist, ChatErrorMessage.error));
+                return;
+            }
+
+            await Clients.Group(value.MunipId).ReactionUpdated(update);
+
+            var pinnedMessages = await _chatStore.GetPinnedMessagesAsync(value.MunipId, Context.ConnectionAborted);
+            await Clients.Group(value.MunipId).PinnedMessagesUpdated(new MunipPinnedMessages(pinnedMessages));
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            await Clients.Caller.ConnectionError(new MunipChatError(ConnectionFault.fail, ChatErrorMessage.forbiddenSymbols));
+        }
     }
 }

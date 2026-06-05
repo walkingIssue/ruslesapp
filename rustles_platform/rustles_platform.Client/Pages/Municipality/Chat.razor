@@ -1,181 +1,925 @@
 @page "/municipality/chat"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
-@using Microsoft.AspNetCore.SignalR.Client
-@using System.Text
 @using rustles.contracts
-@using rustles_platform.Client.Pages.Municipality.DTOs;
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Authorization
+@using rustles_platform.Client.Pages.Municipality.Services.Abstractions
+@using rustles_platform.Client.Pages.Municipality.Services.ChatSession
+@using QueueProgress = rustles_platform.Client.Pages.Municipality.Services.Api.Progress
 @implements IAsyncDisposable
-@inject NavigationManager Navigation
+@inject IChatOrchestrator Service
 @inject IJSRuntime JS
-@inject HttpClient requestClient
-@inject AntiforgeryStateProvider afState
-@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@inject NavigationManager Navigation
+@inject HttpClient Http
+@inject AntiforgeryStateProvider Antiforgery
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
-<link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
-
-<h3>Chat</h3>
-@foreach (var msg in userMessages)
-{
-    <p>@msg</p>
-}
-
-<p>@url</p>
-<textarea @bind="chatMessage" placeholder="Enter message to send"></textarea>
-<button @onclick="(e) => SendMessage(chatMessage)">Send Message</button>
-
-<div class="container">
-    <div class="row">
-        @if (chatError is not null)
-        {
-            <div class="col-6 --bs-danger">
-                <p class="bg-danger">@chatErrorMessage</p>
+<main class="munip-page">
+    <div class="munip-shell">
+        <aside class="signal-rail">
+            <div class="rail-brand">
+                <div class="brand-lockup">
+                    <span class="brand-mark">
+                        <img src="@RustlesMarkUrl" alt="" aria-hidden="true" />
+                        <span class="brand-mark-letter">R</span>
+                    </span>
+                    <div class="brand-copy">
+                        <strong>Rustles</strong>
+                        <small>Local talk, global pattern.</small>
+                    </div>
+                </div>
+                <p class="rail-kicker">Rustles local exchange</p>
+                <h1>Municipality chat that finally feels alive.</h1>
+                <p class="rail-copy">
+                    Location gates the room, queueing resolves the municipality, and the hub takes it live.
+                    The wiring is real now, so tonight gets to be about polish.
+                </p>
             </div>
-        }
+
+            <ol class="journey-list">
+                @foreach (var step in _journey)
+                {
+                    <li class="@GetJourneyClass(step.Index)">
+                        <span class="journey-index">0@(step.Index + 1)</span>
+                        <div>
+                            <p class="journey-label">@step.Label</p>
+                            <p class="journey-detail">@step.Detail</p>
+                        </div>
+                    </li>
+                }
+            </ol>
+
+            <section class="status-card @GetToneClass()">
+                <div class="status-chip">@GetPhaseLabel()</div>
+                <h2>@_headline</h2>
+                <p>@_detail</p>
+
+                @if (!string.IsNullOrWhiteSpace(_queueProgress))
+                {
+                    <p class="status-progress">@_queueProgress</p>
+                }
+
+                @if (ShowRecoveryActions)
+                {
+                    <div class="status-actions">
+                        <button class="secondary-action" @onclick="ReloadExperience">
+                            Try again
+                        </button>
+                    </div>
+                }
+            </section>
+
+            <section class="info-card">
+                <span class="info-label">Connection pulse</span>
+                <strong>@_connectionPulse</strong>
+                <p>@_connectionHint</p>
+            </section>
+        </aside>
+
+        <section class="conversation-stage">
+            <header class="conversation-hero">
+                <div>
+                    <span class="hero-badge @GetToneClass()">@GetPhaseLabel()</span>
+                    <h2>@GetHeroTitle()</h2>
+                    <p>@GetHeroSubtitle()</p>
+                </div>
+
+                <div class="hero-sidecar">
+                    <dl class="hero-metadata">
+                        <div>
+                            <dt>Municipality</dt>
+                            <dd>@(_municipalityName ?? "Resolving room")</dd>
+                        </div>
+                        <div>
+                            <dt>Identity</dt>
+                            <dd>@(_signedInAs ?? "Authenticated resident")</dd>
+                        </div>
+                        <div>
+                            <dt>Transcript</dt>
+                            <dd>@_entries.Count item(s)</dd>
+                        </div>
+                        <div>
+                            <dt>Signal</dt>
+                            <dd>@_connectionPulse</dd>
+                        </div>
+                    </dl>
+
+                    <TrustedTesterSwitch CurrentMunicipality="@_municipalityName" />
+                </div>
+            </header>
+
+            <section class="conversation-card @(HasLiveShell ? "is-live" : "is-locked")">
+                <div class="banner-strip @GetToneClass()">
+                    <span class="banner-dot"></span>
+                    <p>@GetBannerMessage()</p>
+                </div>
+
+                @if (!HasLiveShell)
+                {
+                    <div class="state-panel">
+                        <div class="state-orb"></div>
+                        <div class="state-copy">
+                            <p class="state-kicker">Flow status</p>
+                            <h3>@_headline</h3>
+                            <p>@_detail</p>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    @if (_pinnedEntries.Count > 0)
+                    {
+                        <section class="pinned-strip" aria-label="Pinned active messages">
+                            @foreach (var pinned in _pinnedEntries)
+                            {
+                                <button class="pinned-message"
+                                        type="button"
+                                        @onclick="() => FocusReplyTarget(pinned.MessageId)">
+                                    <span class="pinned-kicker">Pinned</span>
+                                    <strong>@pinned.Title</strong>
+                                    <span>@pinned.Body</span>
+                                </button>
+                            }
+                        </section>
+                    }
+
+                    <div class="@GetTranscriptClass()" @ref="_transcriptRef">
+                        @if (_entries.Count == 0)
+                        {
+                            <div class="empty-transcript">
+                                <p class="empty-title">The room is quiet for the moment.</p>
+                                <p class="empty-copy">
+                                    @(_isHydrating
+                                        ? "Catchup is still loading in."
+                                        : "You are connected. The next message lands here.")
+                                </p>
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var entry in _entries)
+                            {
+                                <ChatMessageBubble Entry="@entry"
+                                                   QuickReactions="@_quickReactions"
+                                                   ReactionSelected="HandleReactionSelectedAsync"
+                                                   StartReply="StartReply"
+                                                   FocusReplyTarget="FocusReplyTarget"
+                                                   CanModerate="@_canModerate"
+                                                   DeleteMessage="DeleteMessageAsync"
+                                                   BanAuthor="BanAuthorAsync" />
+                            }
+                        }
+                    </div>
+                }
+
+                <section class="composer-card">
+                    @if (_replyTarget is not null)
+                    {
+                        <div class="composer-reply-context">
+                            <div>
+                                <span>Replying to @_replyTarget.Title</span>
+                                <p>@_replyTarget.Body</p>
+                            </div>
+                            <button type="button" @onclick="ClearReplyTarget">Cancel</button>
+                        </div>
+                    }
+                    <label class="composer-label" for="munip-compose">Say something local</label>
+                    <textarea id="munip-compose"
+                              class="composer-input"
+                              @bind="_draft"
+                              @bind:event="oninput"
+                              disabled="@(!CanCompose)"
+                              maxlength="500"
+                              onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();document.getElementById('munip-send')?.click();}"
+                              placeholder="@GetComposerPlaceholder()"></textarea>
+
+                    <div class="composer-footer">
+                        <div class="composer-meta">
+                            <span class="composer-state">@GetComposerStateText()</span>
+                            <span class="composer-count">@_draft.Length / 500</span>
+                            <span class="composer-shortcut">Enter sends. Shift+Enter keeps the line open.</span>
+                        </div>
+
+                        <button class="send-action"
+                                id="munip-send"
+                                @onclick="SendDraftAsync"
+                                disabled="@(!CanSend)">
+                            @(_isSending ? "Sending..." : "Send to municipality")
+                        </button>
+                    </div>
+                </section>
+            </section>
+        </section>
     </div>
-</div>
+</main>
 
 @code {
-    private List<string> userMessages = [];
-    private List<string> message = [];
-    private HubConnection? munipHub;
-    private bool enqueOk = false;
-    private string url = string.Empty;
-    private int currentValue = 0;
-    private Guid client = Guid.NewGuid();
-    private string chatMessage = string.Empty;
-    private MunipChatError? chatError = null;
-    private string chatErrorMessage ="We spazzed out for some reason, there's an error on the line";
-    private UserConsent? consent = null;
-
-
-    public record Position(double latti, double longi);
-
-    private Task<HttpResponseMessage> RequestEnque(Position position)
+    private enum ChatPhase
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "api/ConnectMunip");
-        request.Headers.Add("RequestVerificationToken", afState.GetAntiforgeryToken()!.Value);
-        request.Content = JsonContent.Create(position);
-        return requestClient.SendAsync(request);
+        RequestingLocation,
+        Queueing,
+        QueueRetrying,
+        Connecting,
+        CatchingUp,
+        Connected,
+        Reconnecting,
+        Disconnected,
+        LocationDenied,
+        QueueFailed,
+        Error
     }
 
-    private async Task SendMessage(string msg)
-    {
-        if (munipHub is not null)
-        {
-            try
-            {
-                var t = munipHub.MunipChat(msg);
-                userMessages.Add($"Sent: {msg}");
-                await InvokeAsync(StateHasChanged);
-                Console.WriteLine("Message sent to hub.");
-                await t;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error sending message: {ex.Message}");
-            }
-        }
-    }
+    private sealed record JourneyStep(int Index, string Label, string Detail);
 
-    private async Task HandleMunipConnection(ConnectMunipAck connectAck)
-    {
-        userMessages.Clear();
-        await InvokeAsync(StateHasChanged);
-        await Task.Delay(500);
-        message.Add(connectAck.Message);
-        foreach(var mess in connectAck.Catchup)
-        {
-            await Task.Delay(200);
-            userMessages.Add(userMessageBuilder(mess));
-            await InvokeAsync(StateHasChanged);
-        }
-    }
+    private static readonly IReadOnlyList<JourneyStep> _journey =
+    [
+        new(0, "Acquire GPS", "Browser permission and device coordinates."),
+        new(1, "Queue Request", "Rustles resolves the municipality boundary."),
+        new(2, "Open Channel", "SignalR session comes online."),
+        new(3, "Go Live", "Catchup arrives and the room becomes interactive.")
+    ];
 
-    private string userMessageBuilder(MunipChatMessage mess)
-    {
-        return $"{mess.DisplayName}: {mess.Message}   :{mess.SentAt}";
-    }
+    private readonly List<ChatTranscriptEntry> _entries = [];
+    private readonly List<ChatTranscriptEntry> _pinnedEntries = [];
+    private static readonly IReadOnlyList<string> _quickReactions = ["👍", "❤️", "😂", "😮", "🔥"];
+    private const string RustlesMarkUrl = "https://rustlesapp.com/assets/with_backdrop_enlarged.png";
 
-    private void InitializeHub()
-    {
-        url = Navigation.ToAbsoluteUri("/hubs/municipality").ToString();
-        munipHub = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/hubs/municipality"))
-            .WithAutomaticReconnect()
-            .Build();
-    }
-    private async Task<UserConsent?> ConsentHandler(int intervalSeconds)
-    {
-        UserConsent? consent = null;
-        try
-        {
-            consent = await JS.InvokeAsync<UserConsent>("RustlesGeo.assertGeolocationCompliance", intervalSeconds); 
+    private bool _started;
+    private bool _subscriptionsAttached;
+    private bool _isHydrating;
+    private bool _isSending;
+    private bool _canModerate;
+    private bool _shouldScrollTranscript;
+    private bool _scrollSmoothly;
+    private string _draft = string.Empty;
+    private ElementReference _transcriptRef;
+    private ChatTranscriptEntry? _replyTarget;
 
-        }catch(Exception e) when (e is JSException)
-        {
-            return null;
-        }
-        return consent;
-    }
+    private ChatPhase _phase = ChatPhase.RequestingLocation;
+    private string _headline = "Requesting your location";
+    private string _detail = "The browser needs to hand us a real coordinate before anything else can move.";
+    private string _connectionPulse = "Cold boot";
+    private string _connectionHint = "We have not opened the live room yet.";
+    private string? _queueProgress;
+    private string? _signedInAs;
+    private string? _municipalityName;
+
+    private bool HasLiveShell =>
+        _phase is ChatPhase.CatchingUp
+            or ChatPhase.Connected
+            or ChatPhase.Reconnecting
+            or ChatPhase.Disconnected;
+
+    private bool CanCompose =>
+        _phase == ChatPhase.Connected && !_isSending && !_isHydrating;
+
+    private bool CanSend =>
+        CanCompose && !string.IsNullOrWhiteSpace(_draft);
+
+    private bool ShowRecoveryActions =>
+        _phase is ChatPhase.LocationDenied or ChatPhase.QueueFailed or ChatPhase.Disconnected or ChatPhase.Error;
+
+    private bool ShouldConstrainTranscript => _entries.Count > 5;
 
     protected override async Task OnInitializedAsync()
     {
-        HttpResponseMessage? message = null;
-        this.consent = await ConsentHandler(5);
-        if (this.consent is not null && consent.consented && consent.latti is not null && consent.longi is not null)
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _canModerate = authenticationState.User.IsInRole("TrustedTester");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_started)
         {
-            message = await RequestEnque(new Position(consent.latti.Value, consent.longi.Value));
-            if (message.IsSuccessStatusCode)
-                enqueOk = true;
+            _started = true;
+            await BootstrapExperienceAsync();
+        }
+
+        if (_shouldScrollTranscript && HasLiveShell && _entries.Count > 0)
+        {
+            _shouldScrollTranscript = false;
+            if (JS is not null)
+                await JS.InvokeVoidAsync("RustlesChat.scrollToBottom", _transcriptRef, _scrollSmoothly);
+        }
+    }
+
+    private async Task BootstrapExperienceAsync()
+    {
+        AttachConnectionObservers();
+        _entries.Clear();
+        _pinnedEntries.Clear();
+        _replyTarget = null;
+        _queueProgress = null;
+        _signedInAs = null;
+        _municipalityName = null;
+        _shouldScrollTranscript = false;
+
+        SetPhase(
+            ChatPhase.RequestingLocation,
+            "Requesting your location",
+            "The municipality handshake starts with the browser. Once we have a real coordinate, the backend can resolve the room.",
+            "Checking device access",
+            "Waiting on the browser permission gate.");
+        await InvokeAsync(StateHasChanged);
+
+        var locationResult = await Service.RequestClientLocation();
+
+        if (!locationResult.ContextValue.Consented)
+        {
+            SetPhase(
+                ChatPhase.LocationDenied,
+                "Location permission was denied",
+                "This feature is intentionally locked behind device location, so the room can be assigned server-side without trusting the client to pick one.",
+                "Permission blocked",
+                "Reload the page and allow location access to continue.");
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (!locationResult.ContextValue.Resolvable)
+        {
+            SetPhase(
+                ChatPhase.Error,
+                "We got consent but not coordinates",
+                "The browser allowed the API, but the device did not provide a usable position. A stronger signal or a retry usually fixes it.",
+                "Coordinate unresolved",
+                "No municipality can be assigned until the browser yields real coordinates.");
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        SetPhase(
+            ChatPhase.Queueing,
+            "Queueing municipality lookup",
+            "Coordinates are on the wire. Rustles is resolving the municipality and preparing the room.",
+            "Queued for resolution",
+            "The platform is working through the first handshake.");
+        await InvokeAsync(StateHasChanged);
+
+        var queueResult = await Service.EnqueClient(HandleQueueProgressAsync, Retry: true);
+
+        if (!queueResult.ContextValue.Enqued)
+        {
+            ApplyQueueFailure(queueResult.ContextValue.Resolution);
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        SetPhase(
+            ChatPhase.Connecting,
+            "Opening the live channel",
+            "Queueing succeeded. We are bringing up the SignalR connection now.",
+            "Opening socket",
+            "The room is almost live.");
+        await InvokeAsync(StateHasChanged);
+
+        Service.AssignMunipHandlers(
+            HandleIncomingMessageAsync,
+            HandleConnectAckAsync,
+            HandleReactionUpdateAsync,
+            HandlePinnedMessagesAsync,
+            HandleMessageDeletedAsync,
+            HandleChatErrorAsync);
+
+        var connectionResult = await Service.ConnectHub();
+        if (!connectionResult.ContextValue)
+        {
+            SetPhase(
+                ChatPhase.Error,
+                "The live channel did not come up",
+                "Geolocation and queueing both worked, but the hub session itself refused to initialize.",
+                "Connection failed",
+                "A clean reload should be the next move.");
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        SetPhase(
+            ChatPhase.CatchingUp,
+            "Channel open, waiting on room catchup",
+            "The socket is established. We are waiting for the municipality assignment to push the room greeting and recent messages.",
+            "Listening for room assignment",
+            "The transcript will hydrate as soon as the server confirms the municipality.");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void AttachConnectionObservers()
+    {
+        if (_subscriptionsAttached)
+            return;
+
+        Service.SubscribeToDisconnect(args =>
+        {
+            _ = InvokeAsync(() =>
+            {
+                SetPhase(
+                    ChatPhase.Disconnected,
+                    "The room dropped offline",
+                    $"The hub disconnected with reason '{args.Reason}'. Your transcript is still here, but sending is paused.",
+                    "Disconnected",
+                    "Automatic recovery is over. Reload to rejoin the municipality room.");
+                StateHasChanged();
+                return Task.CompletedTask;
+            });
+        });
+
+        Service.SubscribeToReconnecting(args =>
+        {
+            _ = InvokeAsync(() =>
+            {
+                SetPhase(
+                    ChatPhase.Reconnecting,
+                    "Trying to stitch the room back together",
+                    $"SignalR is reconnecting after {Math.Ceiling(args.TimeLapsed.TotalSeconds)} seconds away from the wire.",
+                    "Reconnecting",
+                    "The composer is paused until the hub returns.");
+                StateHasChanged();
+                return Task.CompletedTask;
+            });
+        });
+
+        Service.SubscribeToReconnected(() =>
+        {
+            _ = InvokeAsync(() =>
+            {
+                SetPhase(
+                    ChatPhase.Connected,
+                    "Connection restored",
+                    "The socket is back and the room is live again.",
+                    "Live again",
+                    "You can keep talking.");
+                StateHasChanged();
+                return Task.CompletedTask;
+            });
+        });
+
+        _subscriptionsAttached = true;
+    }
+
+    private Task HandleQueueProgressAsync(QueueProgress progress)
+    {
+        _queueProgress = progress switch
+        {
+            QueueProgress.Retry30 => "High load detected. Backing off for roughly 30 seconds.",
+            QueueProgress.Retry60 => "Still busy. Stretching the retry window to about 60 seconds.",
+            QueueProgress.Retry120 => "Load is staying high. We are making one longer retry pass.",
+            QueueProgress.Failed => "The retry ladder has been exhausted.",
+            _ => "Retrying municipality assignment."
+        };
+
+        SetPhase(
+            ChatPhase.QueueRetrying,
+            "The resolver is under pressure",
+            "We are still in the queue path, but the backend asked the client to back off instead of hammering the endpoint.",
+            "Retrying queue request",
+            _queueProgress);
+
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleConnectAckAsync(ConnectMunipAck ack)
+    {
+        _isHydrating = true;
+        _signedInAs = ack.UserName;
+        _municipalityName = ack.MunipName;
+
+        SetPhase(
+            ChatPhase.CatchingUp,
+            "Municipality assigned",
+            $"You were routed into {ack.MunipName}.",
+            "Hydrating transcript",
+            $"Recent room history from {ack.MunipName} is being folded into the chat.");
+
+        _entries.Clear();
+        _entries.Add(new ChatTranscriptEntry(
+            ChatEntryKind.System,
+            "Room handshake",
+            $"Connected to {ack.MunipName}. {ack.Message}",
+            DateTimeOffset.Now));
+
+        foreach (var item in ack.Catchup)
+            _entries.Add(ToTranscriptEntry(item));
+
+        _pinnedEntries.Clear();
+        if (ack.PinnedMessages is not null)
+            _pinnedEntries.AddRange(ack.PinnedMessages.Select(ToTranscriptEntry));
+
+        _isHydrating = false;
+        QueueTranscriptScroll(smooth: false);
+
+        SetPhase(
+            ChatPhase.Connected,
+            $"You are live in {ack.MunipName}",
+            $"The catchup for {ack.MunipName} landed cleanly. New messages will stream directly into the transcript from here.",
+            "Live",
+            $"You are connected to the real {ack.MunipName} room now.");
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleIncomingMessageAsync(MunipChatMessage message)
+    {
+        _entries.Add(ToTranscriptEntry(message));
+        QueueTranscriptScroll(smooth: true);
+
+        if (_phase is ChatPhase.CatchingUp or ChatPhase.Reconnecting or ChatPhase.Disconnected)
+        {
+            SetPhase(
+                ChatPhase.Connected,
+                "Messages are flowing again",
+                "The transcript is receiving fresh room traffic.",
+                "Live",
+                "The municipality channel is active.");
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Task HandleReactionUpdateAsync(MunipReactionUpdate update)
+    {
+        ApplyReactionUpdate(_entries, update);
+        ApplyReactionUpdate(_pinnedEntries, update);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task HandlePinnedMessagesAsync(MunipPinnedMessages pinnedMessages)
+    {
+        _pinnedEntries.Clear();
+        _pinnedEntries.AddRange(pinnedMessages.Messages.Select(ToTranscriptEntry));
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task HandleMessageDeletedAsync(MunipMessageDeleted deletion)
+    {
+        RemoveDeletedMessage(deletion.MessageId);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleChatErrorAsync(MunipChatError error)
+    {
+        var errorText = error.ErrorMessage switch
+        {
+            ChatErrorMessage.clientDenied => "The server believes location access was denied or invalid for this session.",
+            ChatErrorMessage.length => "That message was rejected because it did not fit the server-side length rules.",
+            ChatErrorMessage.forbiddenSymbols => "The message was rejected for containing disallowed characters.",
+            _ when error.Fault == ConnectionFault.OutofOrder => "The room reported an out-of-order connection problem.",
+            _ => "The room reported a server-side chat error."
+        };
+
+        _entries.Add(new ChatTranscriptEntry(ChatEntryKind.System, "Room warning", errorText, DateTimeOffset.Now));
+        _connectionHint = errorText;
+        QueueTranscriptScroll(smooth: true);
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SendDraftAsync()
+    {
+        if (!CanSend)
+            return;
+
+        _isSending = true;
+        _connectionHint = "Delivering your message to the room.";
+        var draft = _draft.Trim();
+
+        try
+        {
+            await Service.SendMessage(draft, _replyTarget?.MessageId);
+            _draft = string.Empty;
+            _replyTarget = null;
+            _connectionHint = "Message handed off to the live hub.";
+            QueueTranscriptScroll(smooth: true);
+        }
+        catch (Exception)
+        {
+            _connectionHint = "Sending failed. If the room is reconnecting, give it a beat and try again.";
+            _entries.Add(new ChatTranscriptEntry(ChatEntryKind.System, "Send failed", "The message did not make it onto the wire.", DateTimeOffset.Now));
+            QueueTranscriptScroll(smooth: true);
+        }
+        finally
+        {
+            _isSending = false;
             await InvokeAsync(StateHasChanged);
         }
-        if(this.consent is null)
+    }
+
+    private void ReloadExperience()
+    {
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
+
+    private async Task ReactToMessageAsync(Guid? messageId, string emoji)
+    {
+        if (messageId is null || string.IsNullOrWhiteSpace(emoji))
+            return;
+
+        try
         {
-            chatError = new(ConnectionFault.fail, ChatErrorMessage.clientDenied);
-            chatErrorMessage = "We cannot proceed without the Geolocation API consent, if you changed your mind, please reload the page";
+            await Service.ReactToMessage(messageId.Value, emoji);
+        }
+        catch
+        {
+            _connectionHint = "Reaction failed. The room may be reconnecting.";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private Task HandleReactionSelectedAsync(ChatReactionSelection selection)
+    {
+        return ReactToMessageAsync(selection.MessageId, selection.Emoji);
+    }
+
+    private void StartReply(ChatTranscriptEntry entry)
+    {
+        if (entry.MessageId is null)
+            return;
+
+        _replyTarget = entry;
+    }
+
+    private void ClearReplyTarget()
+    {
+        _replyTarget = null;
+    }
+
+    private void FocusReplyTarget(Guid? messageId)
+    {
+        if (messageId is null)
+            return;
+
+        _replyTarget = _entries.FirstOrDefault(entry => entry.MessageId == messageId)
+            ?? _pinnedEntries.FirstOrDefault(entry => entry.MessageId == messageId);
+    }
+
+    private async Task DeleteMessageAsync(ChatTranscriptEntry entry)
+    {
+        if (!_canModerate || entry.MessageId is null)
+            return;
+
+        await SendModerationRequestAsync(
+            $"api/municipality-chat/moderation/messages/{entry.MessageId}/delete",
+            "Message deleted.",
+            entry.MessageId.Value);
+    }
+
+    private async Task BanAuthorAsync(ChatTranscriptEntry entry)
+    {
+        if (!_canModerate || entry.MessageId is null)
+            return;
+
+        await SendModerationRequestAsync(
+            $"api/municipality-chat/moderation/messages/{entry.MessageId}/ban-author",
+            "Message author banned.",
+            null);
+    }
+
+    private async Task SendModerationRequestAsync(
+        string path,
+        string successMessage,
+        Guid? locallyDeletedMessageId)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, path);
+            var token = Antiforgery.GetAntiforgeryToken();
+            if (!string.IsNullOrWhiteSpace(token?.Value))
+                request.Headers.Add("RequestVerificationToken", token.Value);
+
+            request.Content = JsonContent.Create(new ModerationRequest("Trusted tester action from chat."));
+            var response = await Http.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                _connectionHint = $"Moderation failed with HTTP {(int)response.StatusCode}.";
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            if (locallyDeletedMessageId is not null)
+                RemoveDeletedMessage(locallyDeletedMessageId.Value);
+
+            _connectionHint = successMessage;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            _connectionHint = "Moderation failed before the server could respond.";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void RemoveDeletedMessage(Guid messageId)
+    {
+        _entries.RemoveAll(entry => entry.MessageId == messageId);
+        _pinnedEntries.RemoveAll(entry => entry.MessageId == messageId);
+
+        if (_replyTarget?.MessageId == messageId)
+            _replyTarget = null;
+    }
+
+    private void ApplyQueueFailure(ApiResolution resolution)
+    {
+        var (headline, detail, pulse, hint) = resolution switch
+        {
+            ApiResolution.Unauthorized => (
+                "The API rejected the authenticated session",
+                "The browser made it to the backend, but the server would not accept the user identity for this queue request.",
+                "Authorization required",
+                "Sign in again and retry."),
+            ApiResolution.Highload => (
+                "The resolver is saturated",
+                "The municipality lookup service reported heavy load and could not finish the assignment in time.",
+                "High load",
+                "A reload will restart the queue flow."),
+            ApiResolution.Malformed => (
+                "The queue payload was rejected",
+                "The request reached the backend, but the payload failed validation on the server side.",
+                "Payload rejected",
+                "You might be near a border or inside a large body of water which doesnt resolve to a municipality."),
+            ApiResolution.Ratelimited => (
+                "The queue path asked us to slow down",
+                "The resolver refused to keep serving this client right now, which usually means a temporary cool-down.",
+                "Rate limited",
+                "Give it a little time, then try again."),
+            ApiResolution.InternalError => (
+                "The queue path blew up on the server",
+                "This is the branch where the backend did something it really should not have done.",
+                "Server error",
+                "A reload is worth one attempt. After that, inspect the logs."),
+            ApiResolution.NetworkError => (
+                "The client could not reach Rustles",
+                "The browser never completed the request cleanly, so this looks more like a network failure than an application failure.",
+                "Network break",
+                "Check connectivity and retry."),
+            _ => (
+                "The queue flow ended without a room",
+                "Something failed in a way the client could not classify more precisely.",
+                "Queue failed",
+                "A clean reload is the safest next step.")
+        };
+
+        SetPhase(ChatPhase.QueueFailed, headline, detail, pulse, hint);
+    }
+
+    private void QueueTranscriptScroll(bool smooth)
+    {
+        _shouldScrollTranscript = true;
+        _scrollSmoothly = smooth;
+    }
+
+    private void SetPhase(ChatPhase phase, string headline, string detail, string pulse, string hint)
+    {
+        _phase = phase;
+        _headline = headline;
+        _detail = detail;
+        _connectionPulse = pulse;
+        _connectionHint = hint;
+    }
+
+    private string GetPhaseLabel() => _phase switch
+    {
+        ChatPhase.RequestingLocation => "GPS Gate",
+        ChatPhase.Queueing => "Queueing",
+        ChatPhase.QueueRetrying => "Retry Loop",
+        ChatPhase.Connecting => "Dialing In",
+        ChatPhase.CatchingUp => "Hydrating",
+        ChatPhase.Connected => "Live",
+        ChatPhase.Reconnecting => "Reconnecting",
+        ChatPhase.Disconnected => "Offline",
+        ChatPhase.LocationDenied => "Permission Needed",
+        ChatPhase.QueueFailed => "Queue Failed",
+        _ => "Error"
+    };
+
+    private string GetToneClass() => _phase switch
+    {
+        ChatPhase.Connected => "tone-live",
+        ChatPhase.CatchingUp => "tone-warm",
+        ChatPhase.QueueRetrying or ChatPhase.Reconnecting => "tone-amber",
+        ChatPhase.LocationDenied or ChatPhase.QueueFailed or ChatPhase.Disconnected or ChatPhase.Error => "tone-danger",
+        _ => "tone-calm"
+    };
+
+    private string GetHeroTitle() => _phase switch
+    {
+        ChatPhase.Connected when !string.IsNullOrWhiteSpace(_municipalityName) => $"{_municipalityName} is speaking in real time.",
+        ChatPhase.Connected => "Your municipality is speaking in real time.",
+        ChatPhase.CatchingUp when !string.IsNullOrWhiteSpace(_municipalityName) => $"{_municipalityName} found you. Now it is catching you up.",
+        ChatPhase.CatchingUp => "The room found you. Now it is catching you up.",
+        ChatPhase.Reconnecting => "The line slipped, but the transcript is still intact.",
+        ChatPhase.Disconnected => "The room is paused until the connection comes back.",
+        ChatPhase.LocationDenied => "No location, no room.",
+        ChatPhase.QueueFailed => "The lookup flow stalled before the room could open.",
+        ChatPhase.Error => "We hit a real edge in the handshake.",
+        _ => "We are still assembling the room around your location."
+    };
+
+    private string GetHeroSubtitle() => _phase switch
+    {
+        ChatPhase.Connected when !string.IsNullOrWhiteSpace(_municipalityName) => $"The shell is live, {_municipalityName} is assigned, and the chat is finally alive!",
+        ChatPhase.Connected => "The shell is live, the queue completed",
+        ChatPhase.CatchingUp when !string.IsNullOrWhiteSpace(_municipalityName) => $"This is the tiny window between connection startup and {_municipalityName} pushing the first meaningful room state back down.",
+        ChatPhase.CatchingUp => "This is the tiny window between connection startup and the server pushing the first meaningful room state back down.",
+        ChatPhase.Reconnecting => "Automatic reconnect is in flight. The composer stays disabled so we do not fake confidence.",
+        ChatPhase.Disconnected => "You still have context, but we are not pretending messages can leave the browser right now.",
+        ChatPhase.LocationDenied => "The location gate is a product decision here, not an incidental implementation detail.",
+        ChatPhase.QueueFailed => "The browser did its part. The resolver or API path did not finish the handoff.",
+        ChatPhase.Error => "This is the place for honest failure copy instead of silent dead air.",
+        _ => "Location, queueing, and live transport are being orchestrated in sequence."
+    };
+
+    private string GetBannerMessage()
+    {
+        if (_phase == ChatPhase.Connected && _entries.Count > 0)
+            return string.IsNullOrWhiteSpace(_municipalityName)
+                ? "Transcript is live. New messages arrive directly through the municipality hub."
+                : $"{_municipalityName} is live. New messages arrive directly through the municipality hub.";
+
+        return _connectionHint;
+    }
+
+    private string GetComposerPlaceholder() => CanCompose
+        ? string.IsNullOrWhiteSpace(_municipalityName)
+            ? "Write into the municipality room..."
+            : $"Write into {_municipalityName}..."
+        : _phase switch
+        {
+            ChatPhase.Reconnecting => "Hold for reconnect before sending again...",
+            ChatPhase.Disconnected => "The room is offline. Reload before sending...",
+            ChatPhase.CatchingUp => "Catchup is still landing...",
+            _ => "The composer unlocks when the room goes live..."
+        };
+
+    private string GetComposerStateText() => _isSending
+        ? "Sending on the wire"
+        : CanCompose
+            ? "Composer unlocked"
+            : "Composer paused";
+
+    private string GetJourneyClass(int stepIndex)
+    {
+        var currentStep = _phase switch
+        {
+            ChatPhase.RequestingLocation or ChatPhase.LocationDenied => 0,
+            ChatPhase.Queueing or ChatPhase.QueueRetrying or ChatPhase.QueueFailed => 1,
+            ChatPhase.Connecting => 2,
+            _ => 3
+        };
+
+        if (stepIndex < currentStep)
+            return "journey-item is-complete";
+        if (stepIndex == currentStep)
+            return "journey-item is-current";
+        return "journey-item";
+    }
+
+    private ChatTranscriptEntry ToTranscriptEntry(MunipChatMessage message)
+    {
+        if (string.Equals(message.DisplayName, "rustles", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ChatTranscriptEntry(
+                ChatEntryKind.System,
+                "Rustles signal",
+                message.Message,
+                message.SentAt,
+                MessageId: message.MessageId,
+                Reactions: message.Reactions ?? []);
         }
 
-        if (enqueOk)
-        {
-            InitializeHub();
-            munipHub.On<MunipChatMessage>(nameof(IMunipClientMethods.MessageByUser), (munipMessage) =>
-            {
-                string user = munipMessage.DisplayName;
-                userMessages.Add(userMessageBuilder(munipMessage));
-                InvokeAsync(StateHasChanged);
-            });
+        return new ChatTranscriptEntry(
+            ChatEntryKind.Message,
+            message.DisplayName,
+            message.Message,
+            message.SentAt,
+            string.Equals(message.DisplayName, _signedInAs, StringComparison.Ordinal),
+            message.MessageId,
+            message.ReplyToMessageId,
+            message.ReplyToDisplayName,
+            message.ReplyToPreview,
+            message.Reactions ?? [],
+            message.IsPinned);
+    }
 
-            munipHub.On<MunipChatError>(nameof(IMunipClientMethods.ConnectionError), (error) =>
-            {
-                chatError = error;
-                InvokeAsync(StateHasChanged);
-            });
-            munipHub.On<ConnectMunipAck>(nameof(IMunipClientMethods.MunipConnect), async (ack) =>
-            {
-                await HandleMunipConnection(ack);
-            });
+    private static void ApplyReactionUpdate(List<ChatTranscriptEntry> entries, MunipReactionUpdate update)
+    {
+        var index = entries.FindIndex(entry => entry.MessageId == update.MessageId);
+        if (index < 0)
+            return;
 
-            try
-            {
-                await munipHub.StartAsync();
-                Console.WriteLine("Connected to municipality hub.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error connecting to hub: {ex.Message}");
-            }
-        }
+        var current = entries[index];
+        entries[index] = current with { Reactions = update.Reactions };
+    }
+
+    private string GetTranscriptClass()
+    {
+        return ShouldConstrainTranscript
+            ? "transcript is-scrollable"
+            : "transcript";
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (munipHub is not null)
-        {
-            await munipHub.DisposeAsync();
-        }
+        await Service.DisposeAsync();
     }
+
+    private sealed record ModerationRequest(string? Reason, DateTimeOffset? ExpiresAt = null);
 }
-
-<style>
-
-</style>

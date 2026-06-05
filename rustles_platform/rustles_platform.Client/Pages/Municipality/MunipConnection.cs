@@ -7,9 +7,14 @@ namespace rustles_platform.Client.Pages.Municipality
     public static class MunipConnectionExtensions
     {
 
-        public static Task MunipChat(this HubConnection connection, string message)
+        public static Task MunipChat(this HubConnection connection, MunipMessageRequest request)
         {
-            return connection.InvokeAsync(nameof(IMunipServerMethods.MunipUserMessage), message);
+            return connection.InvokeAsync(nameof(IMunipServerMethods.MunipUserMessage), request);
+        }
+
+        public static Task ReactToMessage(this HubConnection connection, MunipReactionRequest request)
+        {
+            return connection.InvokeAsync(nameof(IMunipServerMethods.ReactToMessage), request);
         }
     }
 }

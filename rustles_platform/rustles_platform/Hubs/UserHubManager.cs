@@ -4,50 +4,31 @@ using Microsoft.AspNetCore.SignalR;
 using rustles.contracts;
 using rustles.core.Entities;
 using rustles.core.Systems.ResolutionQue.Abstractions;
+using rustles_platform.Services;
 
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 
+namespace rustles_platform.Hubs;
+
 public class UserHubManager
 {
-
-    public List<MunipGroup> munipGroups = MunipGroup.InstantiateMunips(20).ToList();
-
-    public ConcurrentDictionary<string, ConcurrentQueue<MunipChatMessage>> MunipChats { get; } = new();
+    public IReadOnlyList<MunipGroup> MunicipalityGroups { get; } = MunipGroup.InstantiateMunips(20).ToList();
 
     public class UserConnectionLedgerEntry(
         string? munipId,
         Guid? requestId,
-        string? singalRConnectionId,
-        string? parmanentUserName)
+        string? signalRConnectionId,
+        string? permanentUserName)
     {
         public string? MunipId { get; set; } = munipId;
         public Guid? RequestId { get; set; } = requestId;
-        public string? SingalRConnectionId { get; set; } = singalRConnectionId;
-        public string? ParmanentUserName { get; set; } = parmanentUserName;
+        public string? SignalRConnectionId { get; set; } = signalRConnectionId;
+        public string? PermanentUserName { get; set; } = permanentUserName;
         public object LockObject { get; set; } = new();
     };
 
     public ConcurrentDictionary<string, UserConnectionLedgerEntry?> CurrentUserLedger { get; } = new();
-
-    public IReadOnlyList<MunipChatMessage> CurrentMessages(string munipId)
-    {
-
-        if (MunipChats.TryGetValue(munipId, out var CurrentChat))
-        {
-            return CurrentChat.ToArray();
-        }
-
-        MunipChatMessage[] newChat = [new("rustles", "... can you hear the rustling through the breeze", DateTimeOffset.UtcNow)];
-        var concurrent = new ConcurrentQueue<MunipChatMessage>(newChat);
-        if (!MunipChats.TryAdd(munipId, concurrent))
-        {
-            //assume the we got descheduled and try again.
-            MunipChats.TryAdd(munipId, concurrent);
-        }
-        return newChat.AsReadOnly();
-    }
-
 }
 
 public class MunipDispatcher : BackgroundService
@@ -55,17 +36,20 @@ public class MunipDispatcher : BackgroundService
     readonly UserHubManager _userManager;
     readonly IHubContext<MunicipalityHub, IMunipClientMethods> _context;
     readonly Channel<AssignUserRoom> _channel;
+    readonly IServiceScopeFactory _scopeFactory;
     readonly ILogger _logger;
     public MunipDispatcher(
         IHubContext<MunicipalityHub, 
         IMunipClientMethods> context, 
         ICompletionsink sink, 
         UserHubManager manager, 
+        IServiceScopeFactory scopeFactory,
         ILogger<MunipDispatcher> logger)
     {
         _context = context;
         _channel = sink.UserRoomChannel;
         _userManager = manager;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -82,13 +66,13 @@ public class MunipDispatcher : BackgroundService
                 {
                     //if we have no connection id something is really cooked
                     //most likely the user disconnected
-                    if (value.SingalRConnectionId is null)
+                    if (value.SignalRConnectionId is null)
                         continue;
                     
                     //disconnect old group
                     if(value.MunipId is not null && value.MunipId != currentRead.NaturalName[0])
                         await _context.Groups.RemoveFromGroupAsync(
-                            value.SingalRConnectionId,
+                            value.SignalRConnectionId,
                             value.MunipId!,
                             stoppingToken);
                     
@@ -96,8 +80,8 @@ public class MunipDispatcher : BackgroundService
                     // this is a copy the reference update needs be atomic so we don't lock until that happens.
                     var newLedger = new UserHubManager.UserConnectionLedgerEntry(currentRead.NaturalName[0],
                         value.RequestId,
-                        value.SingalRConnectionId,
-                        value.ParmanentUserName);
+                        value.SignalRConnectionId,
+                        value.PermanentUserName);
 
                     //update ledger object
                     lock (value.LockObject)
@@ -108,23 +92,24 @@ public class MunipDispatcher : BackgroundService
                     //connect with updated values
                     //bang it cus we just assigned.
                     await _context.Groups.AddToGroupAsync(
-                        newLedger.SingalRConnectionId!, 
-                        newLedger.MunipId!, 
+                        newLedger.SignalRConnectionId!,
+                        newLedger.MunipId!,
                         stoppingToken);
 
-                    //this will throw if the user is on a large lake on in nomansland
-                    //(meaning within 5m of a border)
-                    var messages = _userManager.CurrentMessages(newLedger.MunipId!);
+                    using var scope = _scopeFactory.CreateScope();
+                    var chatStore = scope.ServiceProvider.GetRequiredService<IMunicipalityChatStore>();
+                    var messages = await chatStore.GetCatchupAsync(newLedger.MunipId!, stoppingToken);
+                    var pinnedMessages = await chatStore.GetPinnedMessagesAsync(newLedger.MunipId!, stoppingToken);
 
-                    if (messages == null)
-                        continue;
                     //now that i think about it reading from the ledger object is slightly cursed
                     //this is subject to multithreaded change :D
-                    await _context.Clients.Client(newLedger.SingalRConnectionId!).MunipConnect(
+                    await _context.Clients.Client(newLedger.SignalRConnectionId!).MunipConnect(
                         new ConnectMunipAck(
-                            newLedger.ParmanentUserName!,
+                            newLedger.MunipId!,
+                            newLedger.PermanentUserName!,
                             "ConnectionOk",
-                            messages));
+                            messages,
+                            pinnedMessages));
                 }
             } 
             catch(Exception ex)

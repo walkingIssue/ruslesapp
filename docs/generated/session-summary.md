@@ -1,5 +1,7 @@
 # Docs Closeout Summary
 
+Superseded note, 2026-06-05: Current MVP docs and code now treat municipality chat messages, emoji reaction events, moderation deletion metadata, and municipality-scoped bans as persisted data. The app also uses strictly necessary authentication cookies. Older statements below about "no persisted sent messages" and "no cookies" describe an earlier intended direction.
+
 Large documentation-oriented change set with supporting core rewrite work and new tests. The repo gained extensive internal docs around geospatial raster design, batching/state-model plans, product staging, MVP specs, and draft privacy/terms materials. In code, the georesolution pipeline was refactored toward tile batching and async-style staged processing, with new test coverage around batching and request identity. Privacy-related docs now state a stricter MVP direction: no persisted location data, no persisted sent messages, no cookies, and stored registration acknowledgements/block relationships.
 
 ## Human Actions

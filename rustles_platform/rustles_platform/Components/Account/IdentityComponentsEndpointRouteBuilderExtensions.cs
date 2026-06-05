@@ -6,8 +6,10 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Primitives;
 
+using rustles.Infrastructure;
 using rustles.Infrastructure.Model;
 
 using rustles_platform.Components.Account.Pages;
@@ -116,6 +118,7 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
         manageGroup.MapPost("/DownloadPersonalData", async (
             HttpContext context,
             [FromServices] UserManager<User> userManager,
+            [FromServices] UsersDataContext dbContext,
             [FromServices] AuthenticationStateProvider authenticationStateProvider) =>
         {
             var user = await userManager.GetUserAsync(context.User);
@@ -127,14 +130,17 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
             var userId = await userManager.GetUserIdAsync(user);
             downloadLogger.LogInformation("User with ID '{UserId}' asked for their personal data.", userId);
 
-            // Only include personal data for download
-            var personalData = new Dictionary<string, string>();
+            var personalData = new Dictionary<string, object?>();
             var personalDataProps = typeof(User).GetProperties().Where(
                 prop => Attribute.IsDefined(prop, typeof(PersonalDataAttribute)));
             foreach (var p in personalDataProps)
             {
-                personalData.Add(p.Name, p.GetValue(user)?.ToString() ?? "null");
+                personalData.Add(p.Name, p.GetValue(user));
             }
+
+            personalData["UserId"] = userId;
+            personalData["Email"] = user.Email;
+            personalData["PermanentUsername"] = user.PermanentUsername;
 
             var logins = await userManager.GetLoginsAsync(user);
             foreach (var l in logins)
@@ -143,6 +149,48 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
             }
 
             personalData.Add("Authenticator Key", (await userManager.GetAuthenticatorKeyAsync(user))!);
+            personalData["AgeSelfAttestations"] = await dbContext.UserAgeSelfAttestations
+                .Where(attestation => attestation.UserId == userId)
+                .Select(attestation => new { attestation.Id, attestation.TimeStamp })
+                .ToListAsync();
+            personalData["PolicyAcceptances"] = await dbContext.UserPolicyAcceptances
+                .Where(acceptance => acceptance.UserId == userId)
+                .Select(acceptance => new
+                {
+                    acceptance.Id,
+                    acceptance.AcceptedAt,
+                    acceptance.PlatformPolicy.PolicyKey,
+                    acceptance.PlatformPolicy.Version,
+                    acceptance.PlatformPolicy.Title
+                })
+                .ToListAsync();
+            personalData["CookiePolicyConsents"] = await dbContext.UserCookiePolicyConsents
+                .Where(consent => consent.UserId == userId)
+                .Select(consent => new { consent.Id, consent.TimeStamp })
+                .ToListAsync();
+            personalData["Messages"] = await dbContext.MunicipalityChatMessages
+                .Where(message => message.UserId == userId)
+                .Select(message => new
+                {
+                    message.Id,
+                    message.MunicipalityName,
+                    message.DisplayName,
+                    message.Body,
+                    message.SentAt,
+                    message.ReplyToMessageId
+                })
+                .ToListAsync();
+            personalData["Reactions"] = await dbContext.MunicipalityMessageReactions
+                .Where(reaction => reaction.UserId == userId)
+                .Select(reaction => new
+                {
+                    reaction.Id,
+                    reaction.MunicipalityChatMessageId,
+                    reaction.Emoji,
+                    reaction.ReactedAt
+                })
+                .ToListAsync();
+
             var fileBytes = JsonSerializer.SerializeToUtf8Bytes(personalData);
 
             context.Response.Headers.TryAdd("Content-Disposition", "attachment; filename=PersonalData.json");

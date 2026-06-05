@@ -1,0 +1,111 @@
+@using System.Net
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Authorization
+@inject HttpClient Http
+@inject AntiforgeryStateProvider Antiforgery
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@if (_canOverride)
+{
+    <section class="tester-card">
+        <div class="tester-copy">
+            <span class="tester-kicker">Trusted Tester</span>
+            <strong>Live municipality override</strong>
+            <p>Jump the current session into another municipality without walking halfway across Sweden.</p>
+        </div>
+
+        <div class="tester-controls">
+            <InputText @bind-Value="_munipName"
+                       id="trusted-tester-munip"
+                       class="tester-input"
+                       placeholder="Type municipality name" />
+            <button class="tester-action"
+                    @onclick="SwapMunicipalityAsync"
+                    disabled="@(_isPosting || string.IsNullOrWhiteSpace(_munipName))">
+                @(_isPosting ? "Switching..." : "Swap live room")
+            </button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(CurrentMunicipality))
+        {
+            <p class="tester-current">Currently connected to <strong>@CurrentMunicipality</strong>.</p>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_status))
+        {
+            <p class="@(_isError ? "tester-status is-error" : "tester-status")">@_status</p>
+        }
+    </section>
+}
+
+@code {
+    private const string OverridePath = "api/fbb0a13f-2a4a-477c-84a5-e5f18232b00e";
+
+    [Parameter]
+    public string? CurrentMunicipality { get; set; }
+
+    private bool _canOverride;
+    private bool _isPosting;
+    private bool _isError;
+    private string _munipName = string.Empty;
+    private string? _status;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _canOverride = authenticationState.User.IsInRole("TrustedTester");
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (string.IsNullOrWhiteSpace(_munipName) && !string.IsNullOrWhiteSpace(CurrentMunicipality))
+            _munipName = CurrentMunicipality;
+    }
+
+    private async Task SwapMunicipalityAsync()
+    {
+        var trimmed = _munipName.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+            return;
+
+        _isPosting = true;
+        _isError = false;
+        _status = null;
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, OverridePath);
+            var token = Antiforgery.GetAntiforgeryToken();
+            if (!string.IsNullOrWhiteSpace(token?.Value))
+                request.Headers.Add("RequestVerificationToken", token.Value);
+            request.Content = JsonContent.Create(new MunipId(trimmed));
+
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                _status = $"Switch requested for {trimmed}. Waiting on room catchup.";
+                return;
+            }
+
+            _isError = true;
+            _status = response.StatusCode switch
+            {
+                HttpStatusCode.Forbidden => "Trusted tester override was denied by the server.",
+                HttpStatusCode.Unauthorized => "Your session is no longer authorized for municipality override.",
+                HttpStatusCode.NotFound => "That municipality override path did not resolve on the server.",
+                _ => $"Swap failed with HTTP {(int)response.StatusCode}."
+            };
+        }
+        catch
+        {
+            _isError = true;
+            _status = "Swap request failed before the server could respond.";
+        }
+        finally
+        {
+            _isPosting = false;
+        }
+    }
+
+    private sealed record MunipId(string MunipName);
+}

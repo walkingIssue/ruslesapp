@@ -1,0 +1,160 @@
+@using rustles.contracts
+
+<article class="@GetEntryClass()">
+    @if (Entry.Kind == ChatEntryKind.System)
+    {
+        <div class="system-entry-inner">
+            <span class="system-label">@Entry.Title</span>
+            <p>@Entry.Body</p>
+        </div>
+    }
+    else
+    {
+        <div class="entry-avatar" aria-hidden="true">@GetAvatarText(Entry.Title, Entry.IsOwn)</div>
+        <div class="entry-body">
+            <header>
+                <strong>@Entry.Title</strong>
+                <span>@FormatTimestamp(Entry.Timestamp)</span>
+            </header>
+
+            @if (Entry.ReplyToMessageId is not null)
+            {
+                <button class="reply-link"
+                        type="button"
+                        @onclick="() => FocusReplyTarget.InvokeAsync(Entry.ReplyToMessageId)">
+                    <span>@@@Entry.ReplyToDisplayName</span>
+                    <small>@Entry.ReplyToPreview</small>
+                </button>
+            }
+
+            <p>@Entry.Body</p>
+
+            <div class="reaction-row" aria-label="Message actions and reactions">
+                @foreach (var reaction in Entry.Reactions ?? [])
+                {
+                    <button class="reaction-pill"
+                            type="button"
+                            title="React with @reaction.Emoji"
+                            @onclick="() => SelectReactionAsync(reaction.Emoji)">
+                        <span>@reaction.Emoji</span>
+                        <strong>@reaction.Count</strong>
+                    </button>
+                }
+
+                @foreach (var emoji in EffectiveQuickReactions)
+                {
+                    <button class="reaction-action"
+                            type="button"
+                            title="React with @emoji"
+                            @onclick="() => SelectReactionAsync(emoji)">
+                        @emoji
+                    </button>
+                }
+
+                <button class="reply-action"
+                        type="button"
+                        @onclick="() => StartReply.InvokeAsync(Entry)">
+                    Reply
+                </button>
+
+                @if (CanModerate)
+                {
+                    <button class="moderation-action"
+                            type="button"
+                            title="Delete message"
+                            @onclick="() => DeleteMessage.InvokeAsync(Entry)">
+                        Delete
+                    </button>
+                    <button class="moderation-action is-danger"
+                            type="button"
+                            title="Ban message author"
+                            @onclick="() => BanAuthor.InvokeAsync(Entry)">
+                        Ban
+                    </button>
+                }
+            </div>
+        </div>
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public ChatTranscriptEntry Entry { get; set; } = null!;
+
+    [Parameter]
+    public IReadOnlyList<string> QuickReactions { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<ChatReactionSelection> ReactionSelected { get; set; }
+
+    [Parameter]
+    public EventCallback<ChatTranscriptEntry> StartReply { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid?> FocusReplyTarget { get; set; }
+
+    [Parameter]
+    public bool CanModerate { get; set; }
+
+    [Parameter]
+    public EventCallback<ChatTranscriptEntry> DeleteMessage { get; set; }
+
+    [Parameter]
+    public EventCallback<ChatTranscriptEntry> BanAuthor { get; set; }
+
+    private static readonly IReadOnlyList<string> DefaultQuickReactions =
+    [
+        "\U0001F44D",
+        "\u2764\uFE0F",
+        "\U0001F602",
+        "\U0001F62E",
+        "\U0001F525"
+    ];
+
+    private IReadOnlyList<string> EffectiveQuickReactions =>
+        QuickReactions.Count == 0 || QuickReactions.Any(IsMojibake)
+            ? DefaultQuickReactions
+            : QuickReactions;
+
+    private Task SelectReactionAsync(string emoji)
+    {
+        return ReactionSelected.InvokeAsync(new ChatReactionSelection(Entry.MessageId, emoji));
+    }
+
+    private static bool IsMojibake(string value)
+    {
+        return value.Contains("ð", StringComparison.Ordinal)
+            || value.Contains("Ÿ", StringComparison.Ordinal)
+            || value.Contains("â", StringComparison.Ordinal);
+    }
+
+    private string GetEntryClass()
+    {
+        if (Entry.Kind == ChatEntryKind.System)
+            return "transcript-entry is-system";
+
+        return Entry.IsOwn
+            ? "transcript-entry is-message is-own"
+            : "transcript-entry is-message";
+    }
+
+    private static string GetAvatarText(string title, bool isOwn)
+    {
+        if (isOwn)
+            return "YU";
+
+        var letters = title
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(part => part.Length > 0)
+            .Take(2)
+            .Select(part => char.ToUpperInvariant(part[0]))
+            .ToArray();
+
+        return letters.Length == 0 ? "??" : new string(letters);
+    }
+
+    private static string FormatTimestamp(DateTimeOffset? timestamp)
+    {
+        return timestamp?.ToLocalTime().ToString("HH:mm") ?? string.Empty;
+    }
+}

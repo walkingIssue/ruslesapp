@@ -1,0 +1,236 @@
+.transcript-entry {
+    width: min(32rem, 78%);
+}
+
+.transcript-entry.is-message {
+    justify-self: start;
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: start;
+}
+
+.transcript-entry.is-message.is-own {
+    justify-self: end;
+    grid-template-columns: minmax(0, 1fr) 1.95rem;
+    width: min(32rem, 78%);
+}
+
+.entry-avatar {
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(127, 149, 255, 0.9), rgba(165, 141, 255, 0.9));
+    color: #051015;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
+}
+
+.transcript-entry.is-message.is-own .entry-avatar {
+    grid-column: 2;
+    background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+}
+
+.entry-body {
+    min-width: 0;
+    display: grid;
+    gap: 0.22rem;
+    padding: 0.5rem 0.62rem 0.48rem;
+    border: 1px solid transparent;
+    border-radius: 16px;
+    background:
+        linear-gradient(180deg, rgba(156, 136, 255, 0.12), rgba(255, 126, 188, 0.08)) padding-box,
+        linear-gradient(135deg, rgba(255, 126, 188, 0.46), rgba(127, 149, 255, 0.42)) border-box;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+}
+
+.transcript-entry.is-message.is-own .entry-body {
+    grid-column: 1;
+    background:
+        linear-gradient(135deg, rgba(116, 209, 187, 0.18), rgba(127, 149, 255, 0.16)) padding-box,
+        linear-gradient(135deg, rgba(116, 209, 187, 0.34), rgba(127, 149, 255, 0.28)) border-box;
+}
+
+.transcript-entry header {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.55rem;
+    align-items: baseline;
+    min-width: 0;
+}
+
+.transcript-entry header strong {
+    overflow: hidden;
+    color: var(--heading);
+    font-size: 0.95rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.transcript-entry header span {
+    flex: 0 0 auto;
+    color: var(--muted);
+    font-size: 0.74rem;
+}
+
+.transcript-entry.is-message.is-own .entry-body header {
+    justify-content: flex-end;
+}
+
+.transcript-entry.is-message.is-own .entry-body header strong {
+    display: none;
+}
+
+.transcript-entry p {
+    margin: 0;
+    color: #f3f0ff;
+    font-size: 0.95rem;
+    line-height: 1.28;
+    overflow-wrap: anywhere;
+}
+
+.reply-link {
+    display: grid;
+    gap: 0.1rem;
+    width: 100%;
+    padding: 0.42rem 0.54rem;
+    text-align: left;
+    border: 1px solid rgba(116, 209, 187, 0.24);
+    border-radius: 12px;
+    color: var(--text);
+    background: rgba(116, 209, 187, 0.07);
+}
+
+.reply-link span {
+    color: var(--brand-strong);
+    font-weight: 700;
+}
+
+.reply-link small {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.reaction-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.28rem;
+    align-items: center;
+    max-width: 100%;
+    margin-top: 0.2rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+
+.reaction-row::-webkit-scrollbar {
+    display: none;
+}
+
+.reaction-pill,
+.reaction-action,
+.reply-action,
+.moderation-action {
+    flex: 0 0 auto;
+    min-height: 1.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.05);
+    font: inherit;
+    font-size: 0.84rem;
+    line-height: 1;
+}
+
+.reaction-pill {
+    display: inline-flex;
+    gap: 0.26rem;
+    align-items: center;
+    padding: 0.1rem 0.44rem;
+}
+
+.reaction-pill strong {
+    font-size: 0.72rem;
+}
+
+.reaction-action {
+    width: 1.55rem;
+    padding: 0;
+}
+
+.reply-action {
+    padding: 0.1rem 0.52rem;
+    font-weight: 700;
+}
+
+.moderation-action {
+    padding: 0.1rem 0.52rem;
+    font-weight: 700;
+}
+
+.moderation-action.is-danger {
+    color: #ffd6ce;
+    border-color: rgba(255, 140, 122, 0.26);
+    background: rgba(255, 140, 122, 0.1);
+}
+
+.transcript-entry.is-system {
+    justify-self: center;
+    width: min(38rem, 96%);
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.8rem;
+    align-items: center;
+    background:
+        radial-gradient(circle at top left, rgba(116, 209, 187, 0.08), transparent 36%),
+        rgba(255, 255, 255, 0.03);
+    border-style: solid;
+}
+
+.transcript-entry.is-system::before {
+    content: "";
+    width: 2.45rem;
+    height: 2.45rem;
+    border-radius: 999px;
+    background:
+        linear-gradient(135deg, rgba(116, 209, 187, 0.14), rgba(127, 149, 255, 0.14)),
+        url('https://rustlesapp.com/assets/with_backdrop_enlarged.png') center/cover no-repeat;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+}
+
+.system-entry-inner {
+    display: grid;
+    gap: 0.15rem;
+}
+
+.system-label {
+    color: var(--brand-strong);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+@media (max-width: 760px) {
+    .transcript-entry,
+    .transcript-entry.is-message.is-own,
+    .transcript-entry.is-system {
+        width: 100%;
+        max-width: none;
+    }
+
+    .transcript-entry.is-message {
+        grid-template-columns: 1.9rem minmax(0, 1fr);
+    }
+
+    .transcript-entry.is-message.is-own {
+        grid-template-columns: minmax(0, 1fr) 1.9rem;
+    }
+}

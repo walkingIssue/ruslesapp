@@ -23,7 +23,7 @@ Tell the user, in plain language, what MVP Rustles stores and what it deliberate
 - The notice should explicitly state that Rustles stores the user's email address, chosen username, and password information for authentication.
 - The notice should explicitly state that location data is not persisted.
 - The notice should explicitly state that sent messages are not persisted.
-- The notice should explicitly state that Rustles does not use cookies.
+- The notice should explicitly state that Rustles only uses strictly necessary authentication cookies.
 - The notice should explicitly state that Rustles connects the user to a live chat reflecting the municipality of the device.
 - The notice should explicitly state that messages are publicly displayed to other users in that chat.
 - The notice should explicitly state that other users may still save, copy, or persist messages outside Rustles even if Rustles itself does not persist them.

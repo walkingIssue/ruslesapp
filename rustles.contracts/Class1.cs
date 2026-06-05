@@ -2,18 +2,36 @@
 namespace rustles.contracts
 {
 
+    public sealed record MunipReactionSummary(string Emoji, int Count);
+
     public sealed record MunipChatMessage(
+        Guid MessageId,
         string DisplayName,
         string Message,
-        DateTimeOffset SentAt);
+        DateTimeOffset SentAt,
+        Guid? ReplyToMessageId = null,
+        string? ReplyToDisplayName = null,
+        string? ReplyToPreview = null,
+        IReadOnlyList<MunipReactionSummary>? Reactions = null,
+        bool IsPinned = false);
 
     public sealed record ConnectMunipAck(
+        string MunipName,
         string UserName,
         string Message,
-        IReadOnlyList<MunipChatMessage> Catchup
+        IReadOnlyList<MunipChatMessage> Catchup,
+        IReadOnlyList<MunipChatMessage>? PinnedMessages = null
         );
 
-    public sealed record MunipMessageRequest(string Message);
+    public sealed record MunipMessageRequest(string Message, Guid? ReplyToMessageId = null);
+
+    public sealed record MunipReactionRequest(Guid MessageId, string Emoji);
+
+    public sealed record MunipReactionUpdate(Guid MessageId, IReadOnlyList<MunipReactionSummary> Reactions);
+
+    public sealed record MunipPinnedMessages(IReadOnlyList<MunipChatMessage> Messages);
+
+    public sealed record MunipMessageDeleted(Guid MessageId);
 
     public sealed record MunipChatError(ConnectionFault Fault, ChatErrorMessage ErrorMessage);
     
@@ -40,7 +58,8 @@ namespace rustles.contracts
     /// </summary>
     public interface IMunipServerMethods
     {
-        Task MunipUserMessage(string message);
+        Task MunipUserMessage(MunipMessageRequest request);
+        Task ReactToMessage(MunipReactionRequest request);
     }
     
     /// <summary>
@@ -50,6 +69,9 @@ namespace rustles.contracts
     {
         Task MunipConnect(ConnectMunipAck ack);
         Task MessageByUser(MunipChatMessage message);
+        Task ReactionUpdated(MunipReactionUpdate update);
+        Task PinnedMessagesUpdated(MunipPinnedMessages pinnedMessages);
+        Task MessageDeleted(MunipMessageDeleted deletion);
         Task ConnectionError(MunipChatError error);
     }
 }

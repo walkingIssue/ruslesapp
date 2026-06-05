@@ -14,6 +14,9 @@ public class User : IdentityUser
     public UserAgeSelfAttestation? AgeAttest { get; set; }
     public ICollection<UserCookiePolicyConsent?> UserCookiePolicyConsen { get; set; } = [];
     public ICollection<UserPolicyAcceptance?> UserPolicyAcceptances { get; set; } = [];
-
+    public ICollection<MunicipalityChatMessage> MunicipalityChatMessages { get; set; } = [];
+    public ICollection<MunicipalityMessageReaction> MunicipalityMessageReactions { get; set; } = [];
+    public ICollection<MunicipalityUserBan> MunicipalityUserBans { get; set; } = [];
+    public ICollection<MunicipalityUserBan> IssuedMunicipalityUserBans { get; set; } = [];
 }
 

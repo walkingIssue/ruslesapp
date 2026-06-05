@@ -2,6 +2,8 @@
 
 Needs review: `true`
 
+Superseded note, 2026-06-05: The MVP implementation now persists municipality chat messages, emoji reaction events, message deletion metadata, and municipality-scoped moderation bans. It also uses strictly necessary authentication cookies. Treat the older "no persisted sent messages" and "no cookies" statements below as historical review notes, not current implementation guidance.
+
 Privacy review is required. This diff adds or revises multiple privacy-facing and operational-policy documents asserting that the MVP will store account data, username, age/privacy acknowledgements, and block relationships, while not persisting location data, sent messages, or cookies. The diff also adds MVP specs around authentication, blocking, privacy notice, and municipality chat. These appear to be documentation and product-direction changes more than clearly implemented data-handling changes, so they should be treated as review-required assumptions until verified against code and hosting behavior.
 
 ## Proposed Session Log Entry
