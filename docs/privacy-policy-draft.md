@@ -2,7 +2,7 @@
 
 Status: draft for internal review. This document is based on the current MVP application flow and is not legal advice. It must be verified against the final implementation, hosting setup, and release configuration before publication.
 
-Last updated: 2026-04-12
+Last updated: 2026-06-05
 
 ## 1. Who this policy applies to
 
@@ -46,6 +46,11 @@ Based on the current MVP flow, Rustles is expected to process the following cate
 
 - records showing which users a given user has blocked
 
+### Moderation data
+
+- records of municipality-scoped bans created by trusted testers or moderators
+- message deletion metadata such as deletion timestamp, moderator identifier, and optional reason
+
 ### Live service data
 
 - live location input used to resolve the user's municipality
@@ -57,9 +62,10 @@ Based on the current MVP flow, Rustles is expected to process the following cate
 
 Important current MVP assumptions:
 
-- Rustles does **not** persist device location data after municipality resolution completes.
-- Rustles does **not** persist sent chat messages in the MVP flow.
-- Rustles does **not** use cookies in the MVP flow.
+- Rustles does **not** persist raw device location coordinates after municipality resolution completes.
+- Rustles **does** persist sent chat messages, reply links, and emoji reaction events.
+- Rustles **does** persist limited moderation data for message deletion and municipality-scoped bans.
+- Rustles uses strictly necessary authentication cookies.
 
 ## 5. How Rustles uses personal data
 
@@ -72,6 +78,7 @@ Rustles uses personal data for the following purposes:
 - to resolve a user's current municipality from live device location
 - to connect the user to municipality chat
 - to operate user blocking
+- to enforce municipality-scoped moderation decisions
 - to protect the service, investigate abuse, and troubleshoot technical issues
 
 ## 6. Legal bases for processing
@@ -91,7 +98,7 @@ Rustles connects the user to a live chat that currently reflects the municipalit
 
 Messages sent in that chat are publicly displayed to other users in the same chat context and are available for those users to read while the message is live in the service.
 
-Although Rustles does not currently intend to persist sent messages in the MVP flow, other users may still save, copy, screenshot, record, or otherwise retain what is shared in public chat. Users should avoid sharing information they would not want other people to keep.
+Rustles persists sent messages for chat behavior such as catchup, replies, pinned-message scoring, account export, and account deletion. Other users may also save, copy, screenshot, record, or otherwise retain what is shared in public chat. Users should avoid sharing information they would not want other people to keep.
 
 ## 8. Location data
 
@@ -105,20 +112,23 @@ Under the current MVP design:
 
 If this changes, the privacy policy must be updated before the new behavior is introduced.
 
-## 9. Message data
+## 9. Message and reaction data
 
 Under the current MVP design:
 
-- sent messages are used to operate live municipality chat
-- Rustles does not intend to persist sent messages in storage as part of the MVP flow
+- sent messages are persisted for municipality chat catchup, replies, pinned-message scoring, data export, and account deletion
+- emoji reaction events are persisted and aggregated into reaction counts
+- reply links store the target message ID and display preview context
+- deleted messages are hidden from catchup, reactions, and pinned-message scoring, while limited deletion metadata is kept
+- municipality-scoped ban records are used to stop banned users from sending messages or reactions in that municipality
 
-If message persistence, moderation retention, or archival behavior is added later, the policy must be updated before launch of that behavior.
+If moderation retention, review, or appeal behavior changes later, the policy must be updated before launch of that behavior.
 
 ## 10. Cookies and similar technologies
 
-Rustles does not currently intend to use cookies in the MVP flow.
+Rustles uses authentication cookies that are strictly necessary for signing in, staying signed in, and protecting account actions.
 
-If cookies, local storage, session identifiers, analytics tags, or similar technologies are added later, this section must be updated before they are used.
+Rustles does not use advertising or analytics cookies in the current build. The cookie banner acknowledgement is stored in browser local storage only to avoid showing the same notice repeatedly.
 
 ## 11. Who Rustles shares personal data with
 
@@ -145,7 +155,8 @@ The exact retention periods must be verified against the final implementation. B
 - age self-attestation and privacy-notice acknowledgement: for as long as needed to demonstrate the registration acknowledgement record
 - block relationships: until the user removes the block or the account is deleted, unless longer retention is necessary for a legal or security reason
 - live location data: not persisted after municipality resolution
-- sent messages: not persisted in the MVP flow
+- sent messages and reactions: while needed for the active account and product behavior, subject to account deletion and moderation behavior
+- moderation records: while needed to enforce the moderation decision, investigate abuse, or satisfy legal/security needs
 - technical/security logs: only for a limited period necessary for operations and security
 
 The final published version should replace this section with actual retention periods or clearly stated retention criteria.

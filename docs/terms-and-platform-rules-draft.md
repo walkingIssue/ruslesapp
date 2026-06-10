@@ -2,7 +2,7 @@
 
 Status: draft for internal review. This document is based on the current MVP application flow and is not legal advice. It should be reviewed against the final implementation and, if possible, checked by a lawyer before publication.
 
-Last updated: 2026-04-12
+Last updated: 2026-06-05
 
 ## 1. Purpose of this draft
 
@@ -32,7 +32,7 @@ That means:
 - other users may copy, screenshot, record, or otherwise keep what you share
 - you should not post sensitive, private, or identifying information unless you are prepared for other people to retain it
 
-Even if Rustles does not persist sent messages in the MVP flow, other users may still save what you share outside Rustles.
+Rustles persists chat messages and reactions for product behavior, and other users may also save what you share outside Rustles.
 
 ## 4. No guarantee of other users' behaviour
 
@@ -64,13 +64,15 @@ The following should be treated as prohibited conduct in MVP and beyond:
 - spam or coordinated abuse
 - illegal content or illegal activity using the service
 
-## 7. Blocking and future moderation
+## 7. Blocking and moderation
 
 The MVP is expected to include user blocking so a user can hide messages from another user in their own chat experience.
 
 Blocking is a personal control, not a global moderation decision.
 
-Rustles may later add stronger moderation tools such as reporting, review, removal, and account restrictions. This draft should be updated as those features are added.
+Rustles also includes limited trusted-tester moderation tooling for message removal and municipality-scoped bans. A municipality ban restricts the banned user's ability to send messages or reactions in that municipality chat.
+
+Reporting, review queues, appeals, broader account restrictions, and other stronger moderation workflows may be added later. This draft should be updated as those features are added.
 
 ## 8. Platform actions Rustles may take
 
@@ -80,6 +82,7 @@ If Rustles reasonably believes that a user is violating the platform rules, Rust
 - limit access
 - remove access
 - remove or restrict content visibility
+- ban a user from a municipality chat context
 - block or disable accounts
 
 The exact enforcement tooling may be limited in the MVP, but the product direction should still be stated clearly.
@@ -102,7 +105,7 @@ Rustles is an early-stage product and may change, break, or become unavailable.
 
 Rustles does not promise uninterrupted availability, permanent access, or permanent message visibility.
 
-Because the MVP does not persist sent messages, users should not rely on the service as a permanent storage system for chat content.
+Rustles persists chat messages and emoji reactions for product behavior such as catchup, replies, pinned-message scoring, account export, and account deletion. Users should still not rely on the service as permanent storage for important information.
 
 ## 12. Risk disclosure
 

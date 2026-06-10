@@ -1,3 +1,5 @@
+@import url('https://rustlesapp.com/fonts/google-fonts.css');
+
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
@@ -57,4 +59,58 @@ h1:focus {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
+}
+
+.policy-page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1rem 4rem;
+}
+
+.policy-page h1 {
+    margin-bottom: 0.35rem;
+}
+
+.policy-updated {
+    color: #667085;
+}
+
+.policy-page section {
+    margin-top: 1.7rem;
+}
+
+.registration-acknowledgement {
+    border: 1px solid #d0d5dd;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background: #f8fafc;
+}
+
+.registration-acknowledgement h3 {
+    font-size: 1.05rem;
+}
+
+.cookie-notice {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1050;
+    width: min(30rem, calc(100vw - 2rem));
+    border: 1px solid #d0d5dd;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background: #fff;
+    box-shadow: 0 1rem 2.4rem rgba(16, 24, 40, 0.18);
+}
+
+.cookie-notice p {
+    margin: 0 0 0.75rem;
+}
+
+.cookie-notice button {
+    border: 0;
+    border-radius: 0.4rem;
+    padding: 0.55rem 0.85rem;
+    color: #fff;
+    background: #1b6ec2;
 }

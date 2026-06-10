@@ -41,4 +41,4 @@ Feature: Privacy notice
   Scenario: Privacy notice explains cookie usage
     Given a user opens the privacy notice
     When the user reads the section about cookies
-    Then the notice should say that Rustles does not use cookies
+    Then the notice should say that Rustles only uses strictly necessary authentication cookies

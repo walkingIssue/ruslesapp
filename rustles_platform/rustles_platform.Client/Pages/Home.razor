@@ -1,7 +1,11 @@
-﻿@page "/"
+@page "/"
+@inject NavigationManager NavigationManager
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Rustles</PageTitle>
 
-<h1>Hello, world!</h1>
-
-Welcome to your new app.
+@code {
+    protected override void OnInitialized()
+    {
+        NavigationManager.NavigateTo("/municipality/chat", forceLoad: true);
+    }
+}

@@ -166,6 +166,128 @@ namespace rustles.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("rustles.Infrastructure.Model.MunicipalityChatMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeletionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MunicipalityName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ReplyToMessageId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("SentAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReplyToMessageId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("MunicipalityName", "SentAt");
+
+                    b.ToTable("MunicipalityChatMessages");
+                });
+
+            modelBuilder.Entity("rustles.Infrastructure.Model.MunicipalityMessageReaction", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Emoji")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("MunicipalityChatMessageId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("ReactedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("MunicipalityChatMessageId", "Emoji", "ReactedAt");
+
+                    b.ToTable("MunicipalityMessageReactions");
+                });
+
+            modelBuilder.Entity("rustles.Infrastructure.Model.MunicipalityUserBan", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("BannedByUserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MunicipalityName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BannedByUserId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("MunicipalityName", "UserId", "ExpiresAt");
+
+                    b.ToTable("MunicipalityUserBans");
+                });
+
             modelBuilder.Entity("rustles.Infrastructure.Model.PlatformPolicy", b =>
                 {
                     b.Property<int>("Id")
@@ -300,7 +422,13 @@ namespace rustles.Infrastructure.Migrations
                     b.Property<DateTime>("TimeStamp")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("UserCookiePolicyConsents");
                 });
@@ -433,11 +561,78 @@ namespace rustles.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("rustles.Infrastructure.Model.MunicipalityChatMessage", b =>
+                {
+                    b.HasOne("rustles.Infrastructure.Model.MunicipalityChatMessage", "ReplyToMessage")
+                        .WithMany("Replies")
+                        .HasForeignKey("ReplyToMessageId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("rustles.Infrastructure.Model.User", "User")
+                        .WithMany("MunicipalityChatMessages")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ReplyToMessage");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("rustles.Infrastructure.Model.MunicipalityMessageReaction", b =>
+                {
+                    b.HasOne("rustles.Infrastructure.Model.MunicipalityChatMessage", "MunicipalityChatMessage")
+                        .WithMany("Reactions")
+                        .HasForeignKey("MunicipalityChatMessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("rustles.Infrastructure.Model.User", "User")
+                        .WithMany("MunicipalityMessageReactions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MunicipalityChatMessage");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("rustles.Infrastructure.Model.MunicipalityUserBan", b =>
+                {
+                    b.HasOne("rustles.Infrastructure.Model.User", "BannedByUser")
+                        .WithMany("IssuedMunicipalityUserBans")
+                        .HasForeignKey("BannedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("rustles.Infrastructure.Model.User", "User")
+                        .WithMany("MunicipalityUserBans")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BannedByUser");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("rustles.Infrastructure.Model.UserAgeSelfAttestation", b =>
                 {
                     b.HasOne("rustles.Infrastructure.Model.User", "User")
                         .WithOne("AgeAttest")
                         .HasForeignKey("rustles.Infrastructure.Model.UserAgeSelfAttestation", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("rustles.Infrastructure.Model.UserCookiePolicyConsent", b =>
+                {
+                    b.HasOne("rustles.Infrastructure.Model.User", "User")
+                        .WithMany("UserCookiePolicyConsen")
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -453,7 +648,7 @@ namespace rustles.Infrastructure.Migrations
                         .IsRequired();
 
                     b.HasOne("rustles.Infrastructure.Model.User", "User")
-                        .WithMany()
+                        .WithMany("UserPolicyAcceptances")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -461,6 +656,13 @@ namespace rustles.Infrastructure.Migrations
                     b.Navigation("PlatformPolicy");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("rustles.Infrastructure.Model.MunicipalityChatMessage", b =>
+                {
+                    b.Navigation("Reactions");
+
+                    b.Navigation("Replies");
                 });
 
             modelBuilder.Entity("rustles.Infrastructure.Model.PlatformPolicy", b =>
@@ -471,6 +673,18 @@ namespace rustles.Infrastructure.Migrations
             modelBuilder.Entity("rustles.Infrastructure.Model.User", b =>
                 {
                     b.Navigation("AgeAttest");
+
+                    b.Navigation("IssuedMunicipalityUserBans");
+
+                    b.Navigation("MunicipalityChatMessages");
+
+                    b.Navigation("MunicipalityMessageReactions");
+
+                    b.Navigation("MunicipalityUserBans");
+
+                    b.Navigation("UserCookiePolicyConsen");
+
+                    b.Navigation("UserPolicyAcceptances");
                 });
 #pragma warning restore 612, 618
         }
