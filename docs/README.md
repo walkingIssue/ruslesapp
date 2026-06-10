@@ -19,6 +19,7 @@ These notes describe the current codebase, not the ideal future version.
 - `georesolution-hotcache-batching-design.md`: Technical note explaining the current hotcache, dequeue, and tile-materialization rewrite shape in `rustles.core`.
 - `georesolution-responsibility-and-state-model.md`: Responsibility map, data flow, and state automata for the current georesolution rewrite.
 - `georesolution-rewrite-implementation-plan.md`: Concrete rewrite plan for ADR 0001 and ADR 0002, including cell and tile key structure.
+- `mail-sender-configuration.md`: SMTP configuration for real ASP.NET Core Identity email delivery.
 - `municipality-chat-reactions-pinning-and-replies.md`: Implementation note for persisted municipality chat, reactions, pinned-message hydration, replies, and trusted-tester moderation.
 - `operational-data-policy-draft.md`: Internal draft describing current MVP storage, logging, and retention rules.
 - `point-in-polygon-strategies.md`: Compares exact vector, raster, hybrid, and spatial-database lookup strategies.
