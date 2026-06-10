@@ -136,16 +136,9 @@ public class TrustedTesterManager
         using var scope = _provider.CreateAsyncScope();
 
         var roleManger = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
         var exists = await roleManger.FindByNameAsync("TrustedTester");
         if(exists is null)
             await roleManger.CreateAsync(new IdentityRole("TrustedTester"));
-
-        var user = await userManager.FindByEmailAsync("rafaellost2021@outlook.com");
-
-        if(user is not null)
-            await userManager.AddToRoleAsync(user, "TrustedTester");
-
     }
 }
 
@@ -192,7 +185,6 @@ public class TrustedTester : IEndpoint
         .RequireAuthorization(p =>
         {
             p.RequireRole(["TrustedTester"]);
-            p.RequireUserName("rafaellost2021@outlook.com");
         })
         .WithRequestTimeout(TimeSpan.FromSeconds(30));
 
