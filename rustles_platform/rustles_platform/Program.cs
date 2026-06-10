@@ -77,7 +77,14 @@ builder.Services.AddIdentityCore<User>(options =>
     .AddSignInManager()
     .AddDefaultTokenProviders();
 
-builder.Services.AddSingleton<IEmailSender<User>, IdentityNoOpEmailSender>();
+builder.Services
+    .AddOptions<SmtpEmailOptions>()
+    .Bind(builder.Configuration.GetSection(SmtpEmailOptions.SectionName))
+    .ValidateDataAnnotations()
+    .Validate(
+        options => !options.UseDefaultCredentials || string.IsNullOrWhiteSpace(options.UserName),
+        "SMTP default credentials cannot be combined with an explicit user name.");
+builder.Services.AddTransient<IEmailSender<User>, SmtpEmailSender>();
 
 builder.Services.AddSignalR();
 
