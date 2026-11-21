@@ -26,3 +26,11 @@ These notes describe the current codebase, not the ideal future version.
 - `privacy-policy-draft.md`: Public-facing privacy policy draft based on the current MVP application flow.
 - `terms-and-platform-rules-draft.md`: Draft platform rules, public-chat risk disclosure, and early-stage terms direction.
 - `benchmarks/municipality-raster-benchmark-2026-04-11.md`: Structured comparison of the old 4326 raster and the new 5m projected raster.
+
+## Proposed feature work
+
+These documents describe planned behavior, not existing functionality.
+
+- [SecretBox frontend review](secretbox-frontend-review.md): Source-backed navigation, account-flow, and UI findings at revision 93bb8a7.
+- [SecretBox integration plan](secretbox-integration-plan.md): Existing-account secret exchange, proposed attachment points, delivery slices, and data decisions.
+
