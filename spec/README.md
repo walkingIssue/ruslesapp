@@ -26,6 +26,7 @@ Use interaction notes for:
 
 - `templates/`: Starting points for new feature specs and interaction notes.
 - `mvp/`: Current MVP scope and the feature areas we are actively building.
+- [`secretbox/`](secretbox/secret-exchange.interaction.md): Proposed secret-exchange behavior and interaction notes; not implemented or part of the existing municipality-chat MVP.
 
 ## Writing Rules
 
@@ -45,3 +46,4 @@ For a new feature area:
 4. Tighten the spec when the product decision becomes clearer.
 
 These specs are allowed to evolve. They should be honest about current intent, not fake-final documentation.
+

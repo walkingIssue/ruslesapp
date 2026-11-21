@@ -103,7 +103,39 @@ Use this table as a running log.
 | 2026-04-12 | Registration acknowledgement persistence assumed | Yes | Yes | Current MVP direction assumes age self-attestation and privacy-notice acceptance are recorded when account creation is completed. |
 | 2026-06-05 | Persisted municipality messages, emoji reactions, pinned-message scoring, replies, auth-cookie notice, data export/delete support | Yes | Yes | Privacy and terms pages were added, but public legal text still requires human review before production publication. |
 | 2026-06-05 | Added trusted-tester message deletion and municipality-scoped author bans | Yes | Yes | Moderation introduces ban records and message deletion metadata. Public and internal docs must describe this without implying device fingerprinting or global bans. |
+| 2026-11-21 | SecretBox specification and frontend integration proposal | No runtime change; future data handling proposed | Before feature launch, subject to human review | See the SecretBox proposal below; no public policy or terms finalized. |
+
+## SecretBox proposal (2026-11-21)
+
+**Proposal for human review; not implemented.** This documentation change introduces
+no new collection, table, cookie, vendor, or retention behavior. It records the
+potential impact of the [SecretBox plan](secretbox-integration-plan.md). Existing
+policy/terms pages have not been rewritten or finalized.
+
+| Proposed data | Purpose and access | Review needed before implementation/launch |
+| --- | --- | --- |
+| Exchange membership, peer confirmation, sealed/opened timestamps | Enforce a two-person exchange using existing account IDs | Minimize status visibility; no public participant directory or municipality association. |
+| Encrypted secret messages and key references | Hold contributions until both seal; deliver only to the intended recipient | Decide server-managed encryption versus E2EE, key storage/rotation, backup recovery, and deletion. |
+| Hashed expiring invitation tokens | Permit an explicit join request and creator confirmation | Single use, token rotation, log/referrer redaction, and expiry. |
+| Optional camera/audio recording | Capture the current user's reaction after permission | No background capture; private preview; explicit upload if server rendering is selected. |
+| Temporary media, transcripts, captions, and export jobs | Produce a reviewed vertical clip | Choose processing location/vendor, access controls, retention, cleanup, and consent for another participant's material. |
+| Export-version approvals | Record permission to include another person's message, identity, or recording | Bind approval to exact content; edits invalidate it; no promise to recall an exported file. |
+| Blocking and minimal abuse records | Prevent repeated unwanted invitations | Current municipality bans do not implement this; define a narrow access/retention model. |
+| Optional aggregate pilot counts | Evaluate completion/export usage | Existing launch direction excludes third-party trackers; no raw secrets, audio, or invite tokens in telemetry. |
+
+Working defaults proposed for review: expire unready boxes/invitations after 7 days,
+Ready content after 30 days, and temporary rendering assets within 24 hours.
+Define backup retention and cleanup behavior before making retention promises.
+Extend account export/delete to cover this feature while excluding a peer's secret
+before it is available; deletion must include non-database media and key material.
+
+Existing registration records a 16+ self-attestation. Preserve that requirement in
+the specification while the product owner reviews feature eligibility and disclosures.
+Do not infer that account acceptance authorizes recording, third-party processing,
+or public sharing. The current public-chat description does not describe this private
+exchange; updated legal/product copy remains a separate human-reviewed launch task.
 
 ## Working rule
 
 If we are unsure whether something affects privacy, add it to this document anyway. False positives are cheap. Missing a real data-handling change is expensive.
+
